@@ -36,7 +36,7 @@ runs:
         IMAGE_TAG: ${{inputs.imageTag}}
         DOCKERFILE: ${{inputs.dockerfilePath}}
       run: |
-        docker build -t 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:latest-$IMAGE_TAG $DOCKERFILE
+        docker build -t 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG $DOCKERFILE
     - name: 🚀 Push image
       shell: bash
       env:
@@ -44,4 +44,4 @@ runs:
         IMAGE_TAG: ${{inputs.imageTag}}
         DOCKERFILE: ${{inputs.dockerfilePath}}
       run: |
-        docker push 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:latest-$IMAGE_TAG
+        docker push 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
