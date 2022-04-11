@@ -35,9 +35,6 @@ const config = {
 const template = `
 <% if (jira.releaseVersions && jira.releaseVersions.length) {  %>
 Release version: <%= jira.releaseVersions[0].name -%>
-<% jira.releaseVersions.sort((a, b) => a.projectKey.localeCompare(b.projectKey)).forEach((release) => { %>
-  * [<%= release.projectKey %>](<%= jira.baseUrl + '/projects/' + release.projectKey + '/versions/' + release.id %>) <% -%>
-<% }); -%>
 <% } %>
 
 Jira Tickets
