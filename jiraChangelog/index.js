@@ -162,6 +162,10 @@ async function main() {
     console.log(entitles.decode(changelogMessage));
 
     core.setOutput("changelog_message", changelogMessage);
+    core.setOutput(
+      "changelog_message_trimmed",
+      changelogMessage.replace(/[\r\n]+/g, "\\n"),
+    );
   } catch (error) {
     core.setFailed(error.message);
   }
