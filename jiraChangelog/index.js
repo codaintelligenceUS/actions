@@ -167,7 +167,7 @@ async function main() {
       "changelog_message_trimmed",
       JSON.stringify(changelogMessage).slice(
         1,
-        JSON.stringify(changelogMessage) - 1,
+        JSON.stringify(changelogMessage).length - 1,
       ),
     );
   } catch (error) {
