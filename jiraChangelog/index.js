@@ -169,6 +169,7 @@ async function main() {
 
     const entitles = new Entities.AllHtmlEntities();
     const changelogMessage = ejs.render(template, data);
+    const trimmedChangelogMessage = ejs.render(trimmedTemplate, data);
 
     console.log("Changelog message entry:");
     console.log(entitles.decode(changelogMessage));
@@ -177,9 +178,9 @@ async function main() {
 
     core.setOutput(
       "changelog_message_trimmed",
-      JSON.stringify(changelogMessage).slice(
+      JSON.stringify(trimmedChangelogMessage).slice(
         1,
-        JSON.stringify(changelogMessage).length - 1,
+        JSON.stringify(trimmedChangelogMessage).length - 1,
       ),
     );
   } catch (error) {
