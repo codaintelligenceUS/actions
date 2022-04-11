@@ -40,7 +40,7 @@ Release version: <%= jira.releaseVersions[0].name -%>
 Jira Tickets
 ---------------------
 <% tickets.all.forEach((ticket) => { %>
-  * ![](<%= ticket.fields.issuetype.iconUrl %> "<%= ticket.fields.issuetype.name %>") *<%= ticket.fields.issuetype.name %>* [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.forEach((component) => { %> *<%= component.name %>*  <% }) %>  <%= ticket.fields.summary -%>
+  * ![](<%= ticket.fields.issuetype.iconUrl %> "<%= ticket.fields.issuetype.name %>") **<%= ticket.fields.issuetype.name %>** [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.forEach((component) => { %> **<%= component.name %>**  <% }) %>  <%= ticket.fields.summary -%>
 <% }); -%>
 <% if (!tickets.all.length) {%> No JIRA tickets present in this release <% } %>
 
@@ -48,7 +48,7 @@ Jira Tickets
 Other Commits
 ---------------------
 <% commits.noTickets.forEach((commit) => { %>
-  * <%= commit.slackUser ? '@'+commit.slackUser.name : commit.authorName %> - [<%= commit.revision.substr(0, 7) %>] - <%= commit.summary -%>
+  * <%= commit.authorName %> - [<%= commit.revision.substr(0, 7) %>] - <%= commit.summary -%>
 <% }); -%>
 <% } %>
 `;
@@ -61,7 +61,7 @@ Release version: <%= jira.releaseVersions[0].name -%>
 **Jira Tickets**
 
 <% tickets.all.forEach((ticket) => { %>
-  * <%= ticket.fields.issuetype.name %> [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.forEach((component) => { %> - <%= component.name %> -  <% }) %>  <%= ticket.fields.summary -%>
+  * **<%= ticket.fields.issuetype.name %>** [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.forEach((component) => { %> - <%= component.name %> -  <% }) %>  <%= ticket.fields.summary -%>
 <% }); -%>
 <% if (!tickets.all.length) {%> No JIRA tickets present in this release <% } %>
 `;
