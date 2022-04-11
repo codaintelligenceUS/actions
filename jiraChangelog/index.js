@@ -51,7 +51,19 @@ Other Commits
   * <%= commit.slackUser ? '@'+commit.slackUser.name : commit.authorName %> - [<%= commit.revision.substr(0, 7) %>] - <%= commit.summary -%>
 <% }); -%>
 <% } %>
+`;
 
+const trimmedTemplate = `
+<% if (jira.releaseVersions && jira.releaseVersions.length) {  %>
+Release version: <%= jira.releaseVersions[0].name -%>
+<% } %>
+
+Jira Tickets
+---------------------
+<% tickets.all.forEach((ticket) => { %>
+  * <%= ticket.fields.issuetype.name %> [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.forEach((component) => { %> - <%= component.name %> -  <% }) %>  <%= ticket.fields.summary -%>
+<% }); -%>
+<% if (!tickets.all.length) {%> No JIRA tickets present in this release <% } %>
 `;
 
 function generateReleaseVersionName() {
