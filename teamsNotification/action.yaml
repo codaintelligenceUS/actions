@@ -23,7 +23,7 @@ runs:
     - name: 🔪 Newline trim
       id: newline
       shell: bash
-      run: echo ::set-output name=input::$(echo "${{inputs.body}}" | awk '{printf "%s\\n", $0 )'
+      run: input=${{inputs.body}}; echo ::set-output name=input::$(echo "$input" | awk '{printf "%s\\n", $0 )'
     - name: 💬 Teams notification
       shell: bash
       run: |
