@@ -165,7 +165,10 @@ async function main() {
 
     core.setOutput(
       "changelog_message_trimmed",
-      JSON.stringify(changelogMessage),
+      JSON.stringify(changelogMessage).slice(
+        1,
+        JSON.stringify(changelogMessage) - 1,
+      ),
     );
   } catch (error) {
     core.setFailed(error.message);
