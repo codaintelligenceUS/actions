@@ -20,10 +20,14 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: 🔪 Newline trim
+      id: newline
+      shell: bash
+      run: echo ::set-output name=input::$(echo "${{inputs.body}}" | awk '{printf "%s\\n", $0 )'
     - name: 💬 Teams notification
       shell: bash
       run: |
         cat << EOF > message.json
-        {"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","contentUrl":null,"content":{"type":"AdaptiveCard","$schema":"http://adaptivecards.io/schemas/adaptive-card.json","version":"1.3","body":[{"type":"TextBlock","text":"## ${{inputs.title}}","wrap":true},{"type":"TextBlock","text":"${{inputs.body}}","wrap":true}],"actions":[{"type":"Action.OpenUrl","title":"🌐 View on GitHub","url":"${{inputs.url}}"}]}}]}
+        {"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","contentUrl":null,"content":{"type":"AdaptiveCard","$schema":"http://adaptivecards.io/schemas/adaptive-card.json","version":"1.3","body":[{"type":"TextBlock","text":"## ${{inputs.title}}","wrap":true},{"type":"TextBlock","text":"${{steps.newline.outputs.input}}","wrap":true}],"actions":[{"type":"Action.OpenUrl","title":"🌐 View on GitHub","url":"${{inputs.url}}"}]}}]}
         EOF
         curl -X POST ${{ inputs.webhook }} --header 'Content-Type: application/json' -d $(awk '{printf "%s\\n", $0}' message.json)
