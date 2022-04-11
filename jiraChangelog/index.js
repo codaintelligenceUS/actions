@@ -40,9 +40,9 @@ Release version: <%= jira.releaseVersions[0].name -%>
 Jira Tickets
 ---------------------
 <% tickets.all.forEach((ticket) => { %>
-  * [<%= ticket.fields.issuetype.name %>] - [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <%= ticket.fields.summary -%>
+  * ![](<%= ticket.fields.issuetype.iconUrl %> "<%= ticket.fields.issuetype.name %>") [<%= ticket.fields.issuetype.name %>] - [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) [<% ticket.components.all.forEach((component) => { <%= component.name %> }) %>]  <%= ticket.fields.summary -%>
 <% }); -%>
-<% if (!tickets.all.length) {%> ~ None ~ <% } %>
+<% if (!tickets.all.length) {%> No JIRA tickets present in this release <% } %>
 
 <% if (commits.noTickets.length) { %>
 Other Commits
