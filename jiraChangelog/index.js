@@ -58,8 +58,8 @@ const trimmedTemplate = `
 Release version: <%= jira.releaseVersions[0].name -%>
 <% } %>
 
-Jira Tickets
----------------------
+**Jira Tickets**
+
 <% tickets.all.forEach((ticket) => { %>
   * <%= ticket.fields.issuetype.name %> [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.forEach((component) => { %> - <%= component.name %> -  <% }) %>  <%= ticket.fields.summary -%>
 <% }); -%>
