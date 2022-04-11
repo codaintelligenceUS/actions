@@ -86,10 +86,6 @@ function transformCommitLogs(config, logs) {
     (ticket) => !approvalStatus.includes(ticket.fields.status.name),
   );
 
-  try {
-    console.log(ticketList[0].fields, Object.keys(ticketList[0].fields));
-  } catch (e) {}
-
   // Pending ticket owners and their tickets/commits
   const reporters = {};
   pendingTickets.forEach((ticket) => {
