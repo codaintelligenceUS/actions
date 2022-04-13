@@ -1,24 +1,24 @@
-name: "💬 Teams Notification"
-description: "Trigger a Microsoft Teams Notification"
-author: "Bogdan Calapod <bogdan.calapod@codiantelligence.com>"
+name: '💬 Teams Notification'
+description: 'Trigger a Microsoft Teams Notification'
+author: 'Bogdan Calapod <bogdan.calapod@codiantelligence.com>'
 inputs:
   webhook:
-    description: "Teams Webhook to use"
+    description: 'Teams Webhook to use'
     required: true
   title:
-    description: "The teams message title"
+    description: 'The teams message title'
     required: false
-    default: "💥 $GITHUB_REPOSITORY pipeline failed"
+    default: '💥 $GITHUB_REPOSITORY pipeline failed'
   body:
-    description: "Message body"
+    description: 'Message body'
     required: false
-    default: '* 📁 Repository: $GITHUB_REPOSITORY\n* 🌿 Branch: $GITHUB_REF_NAME\n*'
+    default: '* 📁 Repository: $GITHUB_REPOSITORY\n* 🌿 Branch: $GITHUB_REF_NAME'
   url:
-    description: "URL"
+    description: 'URL'
     required: false
-    default: "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+    default: '$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - name: 💬 Teams notification
       shell: bash
