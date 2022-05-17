@@ -30,11 +30,16 @@ const config = {
       to: core.getInput('source_control_range_to'),
     },
   },
+  extraContent: core.getInput('extra_content', { required: false }),
 }
 
 const template = `
 <% if (jira.releaseVersions && jira.releaseVersions.length) {  %>
 Release version: <%= jira.releaseVersions[0].name -%>
+<% } %>
+
+<% if (extraContent) { %>
+  <%= extraContent -%>
 <% } %>
 
 Jira Tickets
@@ -149,6 +154,10 @@ async function main() {
     const release = generateReleaseVersionName()
     console.log(`Release: ${release}`)
 
+    console.log('Reading extra content, if available')
+    const extraContent = config.extraContent
+    console.log(`Extra Content: ${extraContent}`)
+
     console.log('Generating Jira changelog from commit logs')
     const changelog = await jira.generate(commitLogs, release)
     console.log('Changelog entry:')
@@ -163,6 +172,7 @@ async function main() {
     }
     data.includePendingApprovalSection =
       core.getInput('include_pending_approval_section') === 'true'
+    data.extraContent = extraContent
 
     const entitles = new Entities.AllHtmlEntities()
     const changelogMessage = ejs.render(template, data)
