@@ -63,6 +63,10 @@ const trimmedTemplate = `
 Release version: <%= jira.releaseVersions[0].name -%>
 <% } %>
 
+<% if (extraContent) { %>
+  <%= extraContent -%>
+<% } %>
+
 **Jira Tickets**
 
 <% tickets.all.forEach((ticket) => { %>
