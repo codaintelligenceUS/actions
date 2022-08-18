@@ -44,10 +44,10 @@ Release version: <%= jira.releaseVersions[0].name -%>
 
 Jira Tickets
 ---------------------
-<% tickets.all.forEach((ticket) => { %>
+<% tickets.approved.forEach((ticket) => { %>
   * ![](<%= ticket.fields.issuetype.iconUrl %> "<%= ticket.fields.issuetype.name %>") **<%= ticket.fields.issuetype.name %>** [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.map((component) => { %> **<%= component.name %>**  <% }).join(', ') %>  <%= ticket.fields.summary -%>
 <% }); -%>
-<% if (!tickets.all.length) {%> No JIRA tickets present in this release <% } %>
+<% if (!tickets.approved.length) {%> No JIRA tickets present in this release <% } %>
 
 <% if (commits.noTickets.length) { %>
 Other Commits
@@ -69,10 +69,10 @@ Release version: <%= jira.releaseVersions[0].name -%>
 
 **Jira Tickets**
 
-<% tickets.all.forEach((ticket) => { %>
+<% tickets.approved.forEach((ticket) => { %>
   * **<%= ticket.fields.issuetype.name %>** [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.map((component) => { %> <%= component.name %> <% }).join(', ') %>  <%= ticket.fields.summary -%>
 <% }); -%>
-<% if (!tickets.all.length) {%> No JIRA tickets present in this release <% } %>
+<% if (!tickets.approved.length) {%> No JIRA tickets present in this release <% } %>
 `
 
 function generateReleaseVersionName() {
