@@ -49,7 +49,9 @@ outputs:
   changelog_message:
     description: 'Generated changelog entry'
   changelog_message_trimmed:
-    description: "Generated changelog entry, but with raw newlines replaced with the \\n character"
+    description: "Generated changelog entry without commits section"
+  changelog_message_trimmed_teams:
+    description: "Generated changelog entry, but with raw newlines replaced with the \\n character for Teams messages"
 runs:
   using: 'node12'
   main: 'index.js'

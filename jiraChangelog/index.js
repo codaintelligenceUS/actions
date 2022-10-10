@@ -181,17 +181,23 @@ async function main() {
     const entitles = new Entities.AllHtmlEntities()
     const changelogMessage = ejs.render(template, data)
     const trimmedChangelogMessage = ejs.render(trimmedTemplate, data)
+    const trimmedChangelogMessageTeams = ejs.render(trimmedTemplate, data)
 
     console.log('Changelog message entry:')
     console.log(entitles.decode(changelogMessage))
 
+    console.log('Changelog trimmed message entry:')
+    console.log(entitles.decode(trimmedChangelogMessage))
+
     core.setOutput('changelog_message', changelogMessage)
 
+    core.setOutput('changelog_message_trimmed', trimmedChangelogMessage)
+
     core.setOutput(
-      'changelog_message_trimmed',
-      JSON.stringify(trimmedChangelogMessage).slice(
+      'changelog_message_trimmed_teams',
+      JSON.stringify(trimmedChangelogMessageTeams).slice(
         1,
-        JSON.stringify(trimmedChangelogMessage).length - 1,
+        JSON.stringify(trimmedChangelogMessageTeams).length - 1,
       ),
     )
   } catch (error) {
