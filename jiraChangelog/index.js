@@ -59,12 +59,8 @@ Other Commits
 `
 
 const trimmedTemplate = `
-<% if (jira.releaseVersions && jira.releaseVersions.length) {%>
-Release version: <%= jira.releaseVersions[0].name -%>
-<% } %>
-
 <% if (extraContent) { %>
-  <%= extraContent -%>
+<%= extraContent -%>
 <% } %>
 
 **Jira Tickets**
