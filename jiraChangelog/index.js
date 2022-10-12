@@ -59,6 +59,23 @@ Other Commits
 `
 
 const trimmedTemplate = `
+<% if (jira.releaseVersions && jira.releaseVersions.length) {%>
+Release version: <%= jira.releaseVersions[0].name -%>
+<% } %>
+
+<% if (extraContent) { %>
+  <%= extraContent -%>
+<% } %>
+
+**Jira Tickets**
+
+<% tickets.approved.forEach((ticket) => { %>
+  * **<%= ticket.fields.issuetype.name %>** [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.map((component) => { %> <%= component.name %> <% }).join(', ') %>  <%= ticket.fields.summary -%>
+<% }); -%>
+<% if (!tickets.approved.length) {%> No JIRA tickets present in this release <% } %>
+`
+
+const trimmedTemplateTeams = `
 <% if (jira.releaseVersions && jira.releaseVersions.length) {  %>
 Release version: <%= jira.releaseVersions[0].name -%>
 <% } %>
@@ -74,6 +91,7 @@ Release version: <%= jira.releaseVersions[0].name -%>
 <% }); -%>
 <% if (!tickets.approved.length) {%> No JIRA tickets present in this release <% } %>
 `
+
 
 function generateReleaseVersionName() {
   const hasVersion = process.env.VERSION
@@ -181,7 +199,7 @@ async function main() {
     const entitles = new Entities.AllHtmlEntities()
     const changelogMessage = ejs.render(template, data)
     const trimmedChangelogMessage = ejs.render(trimmedTemplate, data)
-    const trimmedChangelogMessageTeams = ejs.render(trimmedTemplate, data)
+    const trimmedChangelogMessageTeams = ejs.render(trimmedTemplateTeams, data)
 
     console.log('Changelog message entry:')
     console.log(entitles.decode(changelogMessage))
