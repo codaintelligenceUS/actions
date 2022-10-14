@@ -53,5 +53,5 @@ outputs:
   changelog_message_trimmed_teams:
     description: "Generated changelog entry, but with raw newlines replaced with the \\n character for Teams messages"
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'index.js'
