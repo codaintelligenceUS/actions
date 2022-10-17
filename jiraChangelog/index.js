@@ -2,6 +2,7 @@ const core = require('@actions/core')
 const _ = require('lodash')
 const Entities = require('html-entities')
 const ejs = require('ejs')
+const moment = require('moment');
 const { SourceControl, Jira } = require('jira-changelog')
 const RegExpFromString = require('regexp-from-string')
 
@@ -61,6 +62,10 @@ Other Commits
 const trimmedTemplate = `
 <% if (extraContent) { %>
 <%= extraContent -%>
+<% } %>
+
+<% if (currentDate) { %>
+<%= currentDate -%>
 <% } %>
 
 **Jira Tickets**
@@ -158,6 +163,8 @@ function transformCommitLogs(config, logs) {
 
 async function main() {
   try {
+    const currentDate = moment().format('YYYY-MM-DD HH:mm');
+
     // Get commits for a range
     const source = new SourceControl(config)
     const jira = new Jira(config)
@@ -191,6 +198,7 @@ async function main() {
     data.includePendingApprovalSection =
       core.getInput('include_pending_approval_section') === 'true'
     data.extraContent = extraContent
+    data.currentDate = currentDate
 
     const entitles = new Entities.AllHtmlEntities()
     const changelogMessage = ejs.render(template, data)
