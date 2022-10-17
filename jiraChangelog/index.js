@@ -163,7 +163,7 @@ function transformCommitLogs(config, logs) {
 
 async function main() {
   try {
-    const currentDate = moment().format('YYYY-MM-DD HH:mm');
+    const currentDate = moment().format('YYYY-MM-DD HH:mm Z');
 
     // Get commits for a range
     const source = new SourceControl(config)
