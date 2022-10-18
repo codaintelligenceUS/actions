@@ -70,7 +70,7 @@ const trimmedTemplate = `
 **Jira Tickets**
 
 <% tickets.approved.forEach((ticket) => { %>
-  * **<%= ticket.fields.issuetype.name %>** [<%= ticket.key %>](<%= jira.baseUrl + '/browse/' + ticket.key %>) <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.map((component) => { %> <%= component.name %> <% }).join(', ') %>  <%= ticket.fields.summary -%>
+  * **<%= ticket.fields.issuetype.name %>** <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.map((component) => { %> <%= component.name %> <% }).join(', ') %>  <%= ticket.fields.summary -%>
 <% }); -%>
 <% if (!tickets.approved.length) {%> No JIRA tickets present in this release <% } %>
 `
