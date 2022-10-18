@@ -162,7 +162,11 @@ function transformCommitLogs(config, logs) {
 
 async function main() {
   try {
-    const currentDate = new Date().toString();
+    const currentDate = new Date().toLocaleDateString('en-GB', {
+      day : 'numeric',
+      month : 'short',
+      year : 'numeric'
+    }).split(' ').join(' ');
 
     // Get commits for a range
     const source = new SourceControl(config)
