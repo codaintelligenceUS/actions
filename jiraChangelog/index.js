@@ -59,6 +59,23 @@ Other Commits
 `
 
 const trimmedTemplate = `
+<% if (extraContent) { %>
+<%= extraContent -%>
+<% } %>
+
+<% if (currentDate) { %>
+<%= currentDate -%>
+<% } %>
+
+**Jira Tickets**
+
+<% tickets.approved.forEach((ticket) => { %>
+  * **<%= ticket.fields.issuetype.name %>** <% ticket.fields.components && ticket.fields.components.length > 0 && ticket.fields.components.map((component) => { %> <%= component.name %> <% }).join(', ') %>  <%= ticket.fields.summary -%>
+<% }); -%>
+<% if (!tickets.approved.length) {%> No JIRA tickets present in this release <% } %>
+`
+
+const trimmedTemplateTeams = `
 <% if (jira.releaseVersions && jira.releaseVersions.length) {  %>
 Release version: <%= jira.releaseVersions[0].name -%>
 <% } %>
@@ -74,6 +91,7 @@ Release version: <%= jira.releaseVersions[0].name -%>
 <% }); -%>
 <% if (!tickets.approved.length) {%> No JIRA tickets present in this release <% } %>
 `
+
 
 function generateReleaseVersionName() {
   const hasVersion = process.env.VERSION
@@ -144,6 +162,12 @@ function transformCommitLogs(config, logs) {
 
 async function main() {
   try {
+    const currentDate = new Date().toLocaleDateString('en-GB', {
+      day : 'numeric',
+      month : 'short',
+      year : 'numeric'
+    }).split(' ').join(' ');
+
     // Get commits for a range
     const source = new SourceControl(config)
     const jira = new Jira(config)
@@ -177,21 +201,28 @@ async function main() {
     data.includePendingApprovalSection =
       core.getInput('include_pending_approval_section') === 'true'
     data.extraContent = extraContent
+    data.currentDate = currentDate
 
     const entitles = new Entities.AllHtmlEntities()
     const changelogMessage = ejs.render(template, data)
     const trimmedChangelogMessage = ejs.render(trimmedTemplate, data)
+    const trimmedChangelogMessageTeams = ejs.render(trimmedTemplateTeams, data)
 
     console.log('Changelog message entry:')
     console.log(entitles.decode(changelogMessage))
 
+    console.log('Changelog trimmed message entry:')
+    console.log(entitles.decode(trimmedChangelogMessage))
+
     core.setOutput('changelog_message', changelogMessage)
 
+    core.setOutput('changelog_message_trimmed', trimmedChangelogMessage)
+
     core.setOutput(
-      'changelog_message_trimmed',
-      JSON.stringify(trimmedChangelogMessage).slice(
+      'changelog_message_trimmed_teams',
+      JSON.stringify(trimmedChangelogMessageTeams).slice(
         1,
-        JSON.stringify(trimmedChangelogMessage).length - 1,
+        JSON.stringify(trimmedChangelogMessageTeams).length - 1,
       ),
     )
   } catch (error) {
