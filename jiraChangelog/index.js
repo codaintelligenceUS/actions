@@ -183,7 +183,9 @@ async function main() {
     console.log(`Release: ${release}`)
 
     console.log('Reading extra content, if available')
-    const extraContent = config.extraContent
+    const hasPGPkey = config.extraContent.indexOf('-----BEGIN PGP SIGNATURE-----') > -1
+
+    const extraContent = hasPGPkey ? config.extraContent.slice(0, config.extraContent.indexOf('-----BEGIN PGP SIGNATURE-----')) : config.extraContent
     console.log(`Extra Content: ${extraContent}`)
 
     console.log('Generating Jira changelog from commit logs')
