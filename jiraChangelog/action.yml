@@ -35,7 +35,7 @@ inputs:
     required: false
   exclude_issue_types:
     description: 'Comma separated list of issue types to exclude from changelog'
-    default: 'Sub-task'
+    default: 'Sub-task,Bug [Subtask] ,Improvement [Subtask] ,Task [Subtask] '
     required: false
   extra_content:
     description: 'Any extra content to be added to the changelog'
