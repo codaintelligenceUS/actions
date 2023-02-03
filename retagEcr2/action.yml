@@ -1,0 +1,58 @@
+name: "🐋 Docker ECR re-tag and publish"
+description: "Re-tag and publish an ECR image"
+author: "Gabriel Mocanu <gabi.mocanu@codaintelligence.com>"
+inputs:
+  ecrRepository:
+    description: "Name of the ECR repo (e.g. isc-frontend)"
+    required: true
+  oldImageTag:
+    description: "Tag of the old image (e.g. latest-develop-)"
+    required: true
+  newImageTag:
+    description: "Tag of the new image (e.g. latest-master-)"
+    required: true
+  awsKey:
+    description: "AWS Access key"
+    required: true
+  awsSecret:
+    description: "AWS Secret Access key"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: 🔒 Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.awsKey }}
+        aws-secret-access-key: ${{ inputs.awsSecret }}
+        aws-region: us-west-2
+
+    - name: 🔑 Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: 👇 Pull image
+      shell: bash
+      env:
+        ECR_REPOSITORY: ${{ inputs.ecrRepository }}
+        OLD_IMAGE_TAG: ${{ inputs.oldImageTag }}
+        NEW_IMAGE_TAG: ${{ inputs.newImageTag }}
+      run: |
+        docker pull 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$OLD_IMAGE_TAG
+
+    - name: 🏷️ Re-tag image
+      shell: bash
+      env:
+        ECR_REPOSITORY: ${{ inputs.ecrRepository }}
+        OLD_IMAGE_TAG: ${{ inputs.oldImageTag }}
+        NEW_IMAGE_TAG: ${{ inputs.newImageTag }}
+      run: |
+        docker tag 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$OLD_IMAGE_TAG 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$NEW_IMAGE_TAG
+
+    - name: 🚀 Push image
+      shell: bash
+      env:
+        ECR_REPOSITORY: ${{ inputs.ecrRepository }}
+        NEW_IMAGE_TAG: ${{ inputs.newImageTag }}
+      run: |
+        docker push 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$NEW_IMAGE_TAG
