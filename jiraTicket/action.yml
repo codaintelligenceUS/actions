@@ -1,0 +1,34 @@
+name: 'Jira Ticket'
+description: 'Generates information about Jira tickets'
+inputs:
+  jira_host:
+    description: 'Root host of your JIRA installation without protocol. // (i.e "yourapp.atlassian.net")'
+    default: 'https://codaintelligence.atlassian.net'
+    required: false
+  jira_email:
+    description: 'Email address of the user to login with'
+    default: 'e@email.com'
+    required: true
+  jira_token:
+    description: 'Auth token of the user to login with'
+    default: 'knmD98cbfsd£jnfjnH?KHKH'
+    required: true
+  ticket_key:
+    description: 'Jira ticket key'
+    default: 'JIRA-123'
+    required: false
+outputs:
+  ticketKey:
+    description: 'Jira ticket key'
+  ticketSummary:
+    description: 'Jira ticket summary'
+  ticketIssueType:
+    description: 'Jira ticket issue type'
+  ticketComponent:
+    description: 'Jira ticket component'
+  pullRequestTitle:
+    description: 'Pull request title'
+
+runs:
+  using: 'node16'
+  main: 'index.js'
