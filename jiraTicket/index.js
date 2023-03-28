@@ -23,11 +23,6 @@ async function main() {
     console.log(ticket.fields.issuetype.name);
     console.log(ticket.fields.components[0]);
 
-    core.setOutput("ticketKey", ticket.key);
-    core.setOutput("ticketSummary", ticket.fields.summary);
-    core.setOutput("ticketIssueType", ticket.fields.issuetype.name);
-    core.setOutput("ticketComponent", ticket.fields.components[0].name);
-
     const components = ticket.fields.components
       .reduce((prev, c) => [...prev, c.name.split(" ")[1].toLowerCase()], "")
       .join("|");
