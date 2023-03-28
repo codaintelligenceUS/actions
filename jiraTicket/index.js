@@ -28,10 +28,9 @@ async function main() {
     core.setOutput("ticketIssueType", ticket.fields.issuetype.name);
     core.setOutput("ticketComponent", ticket.fields.components[0].name);
 
-    const components = ticket.fields.components.reduce(
-      (prev, c) => `${prev} | ${c.name.split(" ")[1].toLowerCase()}`,
-      "",
-    );
+    const components = ticket.fields.components
+      .reduce((prev, c) => [...prev, c.name.split(" ")[1].toLowerCase()], "")
+      .join("|");
     const componentsTitle = components === "" ? "" : `(${components})`;
 
     core.setOutput(
