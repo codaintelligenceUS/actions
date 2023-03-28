@@ -29,7 +29,7 @@ async function main() {
     core.setOutput("ticketComponent", ticket.fields.components[0].name);
 
     const components = ticket.fields.components.reduce(
-      (prev, c) => `${prev} | ${c.split(" ")[1].toLowerCase()}`,
+      (prev, c) => `${prev} | ${c.name.split(" ")[1].toLowerCase()}`,
       "",
     );
     const componentsTitle = components === "" ? "" : `(${components})`;
