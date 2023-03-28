@@ -27,10 +27,21 @@ async function main() {
     core.setOutput("ticketSummary", ticket.fields.summary);
     core.setOutput("ticketIssueType", ticket.fields.issuetype.name);
     core.setOutput("ticketComponent", ticket.fields.components[0].name);
-    core.setOutput("pullRequestTitle", ticket.fields.issuetype.name + "(" + ticket.fields.components[0].name + "): " + ticket.fields.summary + " | " + ticket.key);
 
-    return
+    const components = ticket.fields.components.reduce(
+      (prev, c) => `${prev} | ${c.split(" ")[1].toLowerCase()}`,
+      "",
+    );
+    const componentsTitle = components === "" ? "" : `(${components})`;
 
+    core.setOutput(
+      "pullRequestTitle",
+      `${ticket.fields.issuetype.name.toLowerCase()}${componentsTitle}:${
+        ticket.fields.summary
+      } | ${ticket.key}`,
+    );
+
+    return;
   } catch (error) {
     core.setFailed(error.message);
   }
