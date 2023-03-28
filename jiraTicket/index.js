@@ -24,7 +24,7 @@ async function main() {
     console.log(ticket.fields.components[0]);
 
     const components = ticket.fields.components
-      .reduce((prev, c) => [...prev, c.name.split(" ")[1].toLowerCase()], "")
+      .reduce((prev, c) => [...prev, c.name.split(" ")[1].toLowerCase()], [])
       .join("|");
     const componentsTitle = components === "" ? "" : `(${components})`;
 
