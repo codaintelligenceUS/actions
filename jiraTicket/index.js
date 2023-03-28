@@ -35,7 +35,7 @@ async function main() {
 
     core.setOutput(
       "pullRequestTitle",
-      `${ticket.fields.issuetype.name.toLowerCase()}${componentsTitle}:${
+      `${ticket.fields.issuetype.name.toLowerCase()}${componentsTitle}: ${
         ticket.fields.summary
       } | ${ticket.key}`,
     );
