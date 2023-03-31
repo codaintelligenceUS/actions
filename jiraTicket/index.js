@@ -45,7 +45,7 @@ async function main() {
       "pullRequestTitle",
       `${ticket.fields.issuetype.name.toLowerCase()}${componentsTitle}: ${removeEmoji(
         ticket.fields.summary,
-      )} | ${ticket.key}`,
+      ).trim()} | ${ticket.key}`,
     );
 
     return;
