@@ -12,6 +12,19 @@ const config = {
   },
 };
 
+function removeEmoji(content) {
+  let conByte = new TextEncoder("utf-8").encode(content);
+  for (let i = 0; i < conByte.length; i++) {
+    if ((conByte[i] & 0xf8) == 0xf0) {
+      for (let j = 0; j < 4; j++) {
+        conByte[i + j] = 0x30;
+      }
+      i += 3;
+    }
+  }
+  content = new TextDecoder("utf-8").decode(conByte);
+  return content.replaceAll("0000", "");
+}
 async function main() {
   try {
     const jira = new Jira(config);
@@ -30,9 +43,9 @@ async function main() {
 
     core.setOutput(
       "pullRequestTitle",
-      `${ticket.fields.issuetype.name.toLowerCase()}${componentsTitle}: ${
-        ticket.fields.summary
-      } | ${ticket.key}`,
+      `${ticket.fields.issuetype.name.toLowerCase()}${componentsTitle}: ${removeEmoji(
+        ticket.fields.summary,
+      )} | ${ticket.key}`,
     );
 
     return;
