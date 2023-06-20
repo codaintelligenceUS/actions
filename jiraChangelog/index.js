@@ -23,6 +23,7 @@ const config = {
       .split(",")
       .filter((x) => x !== ""),
     includeIssueTypes: [],
+    excludeLabel: core.getInput("exclude_label"),
   },
   sourceControl: {
     defaultRange: {
@@ -109,10 +110,12 @@ function transformCommitLogs(config, logs) {
     });
     return all;
   }, {});
+
   const ticketList = _.sortBy(
     Object.values(ticketHash),
     (ticket) => ticket.fields.issuetype.name,
   );
+
   let pendingTickets = ticketList.filter(
     (ticket) => !approvalStatus.includes(ticket.fields.status.name),
   );
@@ -148,7 +151,7 @@ function transformCommitLogs(config, logs) {
       pendingByOwner,
       all: ticketList,
       approved: ticketList.filter((ticket) =>
-        approvalStatus.includes(ticket.fields.status.name),
+        approvalStatus.includes(ticket.fields.status.name) && !ticket.fields.labels.includes("Internal"),
       ),
       pending: pendingTickets,
     },
