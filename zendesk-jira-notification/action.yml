@@ -1,0 +1,26 @@
+name: 'ZenDesk Notification'
+description: 'ZenDesk Notification Action with JIRA integration'
+inputs:
+  github_token:
+    description: 'GitHub token to use for authentication and authorization with GitHub API'
+    required: true
+  zendesk_username:
+    description: 'ZenDesk username to use for authentication and authorization with ZenDesk API'
+    required: true
+  zendesk_token:
+    description: 'ZenDesk token to use for authentication and authorization with ZenDesk API'
+    required: true
+  zendesk_uri:
+    description: 'ZenDesk API URI to use for ZenDesk API'
+    default: 'https://coda.zendesk.com/api/v2'
+    required: true
+  github_owner:
+    description: 'Owner name to use for GitHub API to extract release notes'
+    default: 'codaintelligenceUS'
+    required: true
+  github_repo:
+    description: 'Repository name to use for GitHub API to extract release notes'
+    required: true
+runs:
+  using: 'node18'
+  main: 'index.js'
