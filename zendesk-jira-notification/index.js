@@ -1,9 +1,11 @@
-const zendesk = require("node-zendesk");
-const core = require("@actions/core");
-const { Octokit } = require("@octokit/rest");
+import zendesk from "node-zendesk";
+import core from "@actions/core";
+import { Octokit } from "@octokit/rest";
+import fetch from "node-fetch";
 
 const octokit = new Octokit({
-  auth: core.getInput("github_token")
+  auth: core.getInput("github_token"),
+  request: { fetch },
 });
 
 const zendeskClient = zendesk.createClient({
