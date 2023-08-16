@@ -11,7 +11,7 @@ const octokit = new Octokit({
 const zendeskClient = zendesk.createClient({
   username: core.getInput("zendesk_username"),
   token: core.getInput("zendesk_token"),
-  remoteUri: core.getInput("zendesk_uri")
+  remoteUri: core.getInput("zendesk_uri"),
 });
 
 async function getChangelog() {
@@ -41,7 +41,8 @@ async function getZendeskTickets() {
   // 9808808323100 = Jira Ticket Custom Field ID
   zendeskTickets = zendeskTickets.map((ticket) => ({
     zendeskTicketid: ticket.id,
-    jiraTicketId: ticket.fields.find((field) => field.id === 9808808323100).value,
+    jiraTicketId: ticket.fields.find((field) => field.id === 9808808323100)
+      .value,
   }));
 
   return zendeskTickets.filter((ticket) => !!ticket.jiraTicketId);
@@ -56,21 +57,24 @@ async function updateTicket(zendeskTicketId, versionTag) {
     This is an automated message.
     `;
 
-    zendeskClient.tickets.update(zendeskTicketId, 
-      {
-        "ticket": {
-          comment: { 
-            "body": notificationMessage,
-            "public": true
-          },
-          "status": "pending"
-        }
-      }, (err, req, res) => {
-        if(!err) {
-          console.log('Ticket ' + zendeskTicketId + ' updated!')
-        }
+  zendeskClient.tickets.update(
+    zendeskTicketId,
+    {
+      ticket: {
+        comment: {
+          body: notificationMessage,
+          public: false,
+        },
+        status: "pending",
+      },
+    },
+    (err, req, res) => {
+      if (!err) {
+        console.log("Ticket " + zendeskTicketId + " updated!");
       }
-    )}
+    }
+  );
+}
 
 async function main() {
   try {
@@ -81,7 +85,9 @@ async function main() {
     const zendeskTickets = await getZendeskTickets();
 
     const ticketsToUpdate = zendeskTickets.filter((ticket) => {
-      if ( jiraTickets.some((jiraTicket) => jiraTicket === ticket.jiraTicketId) ) {
+      if (
+        jiraTickets.some((jiraTicket) => jiraTicket === ticket.jiraTicketId)
+      ) {
         return ticket;
       }
     });
@@ -89,7 +95,6 @@ async function main() {
     for (const ticket of ticketsToUpdate) {
       updateTicket(ticket.zendeskTicketid, changelog.tag);
     }
-
   } catch (error) {
     console.log(error);
   }
