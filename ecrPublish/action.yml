@@ -1,24 +1,35 @@
-name: '🐋 Docker ECR build and publish'
-description: 'Build and publish an ECR image'
-author: 'Bogdan Calapod <bogdan.calapod@codaintelligence.com>'
+name: "Docker ECR build and publish"
+description: "Build and publish an ECR image"
+author: "Bogdan Calapod <bogdan.calapod@codaintelligence.com>"
 inputs:
   dockerfilePath:
-    description: 'Path to the dockerfile you want to build'
+    description: "Path to the dockerfile you want to build"
     required: true
   ecrRepository:
-    description: 'Name of the ECR repo (e.g. isc-frontend)'
+    description: "Name of the ECR repo (e.g. isc-frontend)"
     required: true
   imageTag:
-    description: 'Tag to publish the image with'
+    description: "Tag to publish the image with"
     required: true
   awsKey:
-    description: 'AWS Access key'
+    description: "AWS Access key"
     required: true
   awsSecret:
-    description: 'AWS Secret Access key'
+    description: "AWS Secret Access key"
     required: true
+  buildArgs:
+    description: "Build args for Docker build"
+    required: false
+  context:
+    description: "Path to use for Docker build"
+    default: .
+    required: false
+  buildContexts:
+    description: "Build context for Docker build"
+    required: false
+
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: 🔒 Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -26,25 +37,19 @@ runs:
         aws-access-key-id: ${{ inputs.awsKey }}
         aws-secret-access-key: ${{ inputs.awsSecret }}
         aws-region: us-west-2
-  
-    - name: 🔑 Login to Amazon ECR
+
+    - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
-  
-    - name: 🔨 Build image
-      shell: bash
-      env:
-        ECR_REPOSITORY: ${{ inputs.ecrRepository }}
-        IMAGE_TAG: ${{ inputs.imageTag }}
-        DOCKERFILE: ${{ inputs.dockerfilePath }}
-      run: |
-        docker build -t 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG $DOCKERFILE
-  
-    - name: 🚀 Push image
-      shell: bash
-      env:
-        ECR_REPOSITORY: ${{ inputs.ecrRepository }}
-        IMAGE_TAG: ${{ inputs.imageTag }}
-        DOCKERFILE: ${{ inputs.dockerfilePath }}
-      run: |
-        docker push 113648241012.dkr.ecr.us-west-2.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
+
+    - name: Build and push
+      id: build-and-push
+      uses: docker/build-push-action@v4
+      with:
+        build-args: ${{ inputs.buildArgs }}
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfilePath }}
+        push: true
+        secrets: ${{ inputs.docker_secrets }}
+        tags: 113648241012.dkr.ecr.us-west-2.amazonaws.com/${{ inputs.ecrRepository }}:${{ inputs.imageTag }}
+        build-contexts: ${{ inputs.buildContexts }}
