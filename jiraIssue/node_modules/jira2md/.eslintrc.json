@@ -1,0 +1,53 @@
+{
+    "env": {
+        "browser": false,
+        "node": true,
+        "es6": true,
+        "mocha": true
+    },
+    "extends": ["airbnb-base", "plugin:prettier/recommended", "plugin:chai-friendly/recommended"],
+    "plugins": ["prettier", "chai-friendly", "jsdoc"],
+    "globals": {
+        "Atomics": "readonly",
+        "SharedArrayBuffer": "readonly"
+    },
+    "parserOptions": {
+        "ecmaVersion": 2020,
+        "sourceType": "module"
+    },
+    "rules": {
+        "prettier/prettier": "error",
+        "no-underscore-dangle": "off",
+        "class-methods-use-this": "off",
+        "require-jsdoc": "error",
+        "valid-jsdoc": "off",
+        "global-require": "warn",
+        "lines-between-class-members": "off",
+        "jsdoc/check-alignment": 1, // Recommended
+        "jsdoc/check-indentation": 1,
+        "jsdoc/check-param-names": 1, // Recommended
+        "jsdoc/check-syntax": 1,
+        "jsdoc/check-tag-names": [
+            "warn",
+            {
+                "definedTags": ["typicalname"]
+            }
+        ],
+        "jsdoc/check-types": 1, // Recommended
+        "jsdoc/implements-on-classes": 1, // Recommended
+        "jsdoc/match-description": 1,
+        "jsdoc/newline-after-description": 1, // Recommended
+        "jsdoc/require-description": 1,
+        "jsdoc/require-hyphen-before-param-description": 1,
+        "jsdoc/require-jsdoc": 1, // Recommended
+        "jsdoc/require-param": 1, // Recommended
+        "jsdoc/require-param-description": 1, // Recommended
+        "jsdoc/require-param-name": 1, // Recommended
+        "jsdoc/require-param-type": 1, // Recommended
+        "jsdoc/require-returns": 1, // Recommended
+        "jsdoc/require-returns-check": 1, // Recommended
+        "jsdoc/require-returns-description": 1, // Recommended
+        "jsdoc/require-returns-type": 1, // Recommended
+        "jsdoc/valid-types": 1 // Recommended
+    }
+}

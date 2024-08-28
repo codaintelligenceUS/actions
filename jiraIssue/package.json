@@ -1,0 +1,25 @@
+{
+  "name": "github-jira-get-issue-action",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Generates information about Jira tickets",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codaintelligenceUS/actions.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/codaintelligenceUS/actions/issues"
+  },
+  "homepage": "https://github.com/codaintelligenceUS/actions#readme",
+  "dependencies": {
+    "@actions/core": "^1.1.0",
+    "@actions/github": "^1.1.0",
+    "jira-changelog": "^1.5.0",
+    "jira2md": "^3.0.1",
+    "octokit": "^4.0.2"
+  }
+}

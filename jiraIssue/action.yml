@@ -1,0 +1,43 @@
+name: "Jira Issue Updater"
+description: "Updates the issues based on various events that we want to perform"
+inputs:
+  jira_host:
+    description: 'Root host of your JIRA installation without protocol. // (i.e "yourapp.atlassian.net")'
+    default: "https://codaintelligence.atlassian.net"
+    required: false
+  jira_email:
+    description: "Email address of the user to login with"
+    required: true
+  jira_token:
+    description: "Auth token of the user to login with"
+    required: true
+  ticket_key:
+    description: "String that contains any JIRA ticket of the form FN-1234"
+    required: true
+  action_to_take:
+    description: "The action to be performed on the issue. Check the readme for valid options"
+    required: true
+  gh_token:
+    description: "Github token, can be passed as ${{secrets.GITHUB_TOKEN}}"
+    default: ""
+    required: false
+  pr_number:
+    description: "The PR number, if applicable. This can be passed as ${{github.event.number}}"
+    default: ""
+    required: false
+  repo_name:
+    description: "Repository name of the form <owner>/<repo>. Get it from ${{github.repository}}"
+    default: ""
+    required: false
+  release_version:
+    description: "The release version, if it exists. Required if action to take is `move_to_staging` or `move_to_production`"
+    default: ""
+    required: false
+  tester_usernames:
+    description: "The github usernames of users considered testers. These users are taken into account for transitioning to in testing or testing rejected, for example"
+    default: ""
+    required: false
+
+runs:
+  using: "node20"
+  main: "index.js"
