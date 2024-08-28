@@ -136,6 +136,8 @@ ${j2m.to_markdown(issue.fields.description)}`;
 
 /**
  * Marks the passed issue as in testing, if the specified reviewer is passed. If not, it bails
+ *
+ * @param {JiraApi} jira - Jira API Client
  */
 async function markAsInTesting(jira) {
   if (config.prNumber === "") {
@@ -162,12 +164,13 @@ async function markAsInTesting(jira) {
 
   if (requestedReviewers.length === 0) {
     console.warn(
-      "⚠️  No testers found in assigned reviewers, ignoring testing state",
+      "⚠️  No testers found in assigned reviewers, converting to in progress",
     );
+    await markAsInProgressOrInReview(jira);
     process.exit(0);
   }
 
-  console.log(JSON.stringify(pr, null, 4));
+  await markAsState(jira, config.ticketKeys, "In Testing");
 }
 
 main();
