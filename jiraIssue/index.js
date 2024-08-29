@@ -4,6 +4,7 @@ import { Octokit } from "octokit";
 import j2m from "jira2md";
 
 const jiraTicketRegex = /\bFN-\d+\b/g;
+const accountIdRegex = /\[~accountid:(.*?)\]/g;
 
 const jiraFields = {
   DESIGN_LINK: "customfield_10558",
@@ -124,7 +125,16 @@ async function markAsInProgressOrInReview(jira) {
 
 ---
 
-${j2m.to_markdown(issue.fields.description)}`;
+${j2m.to_markdown(issue.fields.description)}
+
+<details>
+  <summary> 💬 ${issue.fields.comment.comments.length} Comments </summary>
+
+  <table>
+  ${(await Promise.all(issue.fields.comment.comments.map(parseComment))).join("\n")}
+  </table>
+</details>
+`;
 
   await editPrDescription(title, description);
   await editIssueField(
@@ -155,8 +165,6 @@ async function markAsInTesting(jira) {
     );
     process.exit(0);
   }
-
-  const issue = await jira.getIssue(config.ticketKeys[0]);
 
   const requestedReviewers = (await getPrReviewRequestsUsers()).filter((user) =>
     config.testerUsernames.includes(user.login),
@@ -244,6 +252,57 @@ async function editPrDescription(title, description) {
 async function getTransition(jira, issueId, stateName) {
   const transitions = (await jira.listTransitions(issueId)).transitions;
   return transitions.find((v) => v.name === stateName);
+}
+
+/**
+ * Helper function to get account information from Jira
+ *
+ * @param {string} accountId - The account ID, of the shape `[~accountid:<guid>]`
+ * @returns {object} The user account object from the Jira API
+ */
+async function getAccountInfo(accountId) {
+  accountId = accountId.split("accountid:")[1].replace("]", "");
+  return await fetch(
+    `https://${config.api.host}/rest/api/2/user?accountId=${accountId}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${Buffer.from(
+          `${config.api.email}:${config.api.token}`,
+        ).toString("base64")}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Force-Accept-Language": true,
+        "Accept-Language": "en-US",
+      },
+    },
+  ).then((r) => r.json());
+}
+
+/**
+ * Helper function to parse comment parameters (e.g. account ids) to a cleaner format
+ *
+ * @param {object} comment The comment object from the Jira API response
+ */
+async function parseComment(comment) {
+  const accountIds = comment.body.match(accountIdRegex);
+
+  if (accountIds !== null) {
+    for (const accountId of accountIds) {
+      const accountInfo = await getAccountInfo(accountId);
+
+      comment.body = comment.body.replaceAll(
+        accountId,
+        `<kbd> <img src="${accountInfo.avatarUrls["16x16"]}" width="12" height="12"/> ${accountInfo.displayName} </kbd>`,
+      );
+    }
+  }
+
+  return `
+<tr>
+<td> <img src="${comment.author.avatarUrls["16x16"]}" /> <b>${comment.author.displayName}</b> </td>
+<td> ${j2m.to_markdown(comment.body)} </td>
+`;
 }
 
 /**
