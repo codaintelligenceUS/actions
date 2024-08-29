@@ -11,6 +11,7 @@ const jiraFields = {
   PRODUCT_AREA: "customfield_10571",
   CLIENTS: "customfield_10566",
   PR_LINK: "customfield_10574",
+  TEST_REJECTION_REASON: "customfield_10607",
 };
 
 const config = {
@@ -32,9 +33,7 @@ const config = {
 const actionsToTake = {
   markAsInProgressOrInReview,
   markAsInTesting,
-  markAsTestingRejected: () => {
-    /** */
-  },
+  markAsTestingRejected,
   markAsDeployedToDev: () => {
     /** */
   },
@@ -165,6 +164,8 @@ ${j2m.to_markdown(issue.fields.description)}
 /**
  * Marks the passed issue as in testing, if the specified reviewer is passed. If not, it bails
  *
+ * This should be called on the `reviewer_added` event
+ *
  * @param {JiraApi} jira - Jira API Client
  */
 async function markAsInTesting(jira) {
@@ -199,6 +200,55 @@ async function markAsInTesting(jira) {
   await markAsState(jira, config.ticketKeys, "In Testing");
 }
 
+/**
+ * Marks the passed issue as testing rejected, if the reviewer is passed and review is requesting changes.
+ *
+ * This should be called on the review_submitted event
+ *
+ * @param {JiraApi} jira - Jira API Client
+ */
+async function markAsTestingRejected(jira) {
+  if (config.prNumber === "") {
+    console.error(
+      "‼️  No PR number specified - not checking if we shouldc convert to testing rejected",
+    );
+    process.exit(-1);
+  }
+
+  const pr = await getPrInfo();
+
+  if (pr.data.draft) {
+    console.error(
+      "⚠️  Specified PR is marked as Draft. Exiting without editing.",
+    );
+    process.exit(0);
+  }
+
+  const reviews = await getPrReviews();
+  const testerReviews = reviews.filter((r) =>
+    config.testerUsernames.includes(r.user.login),
+  );
+  const rejectedReviews = testerReviews.filter(
+    (r) => r.state === "CHANGES_REQUESTED",
+  );
+
+  if (rejectedReviews.length === 0) {
+    console.log("✅ No rejected reviews - exiting");
+    await markAsInProgressOrInReview(jira);
+    process.exit(0);
+  }
+
+  console.log(
+    "😵 Rejected review found - saving review comment and transitioning issue to Testing Rejected",
+  );
+  transitionIssue(jira, config.ticketKeys[0], "Testing Rejected");
+  const rejectedReviewMessage = rejectedReviews[0].body;
+  await editIssueField(
+    config.ticketKeys[0],
+    jiraFields.TEST_REJECTION_REASON,
+    rejectedReviewMessage,
+  );
+}
 main();
 
 /* --------------------- Utility Functions ----------------------- */
@@ -241,6 +291,23 @@ async function removePrReviewRequest(username) {
     pull_number: config.prNumber,
     reviewers: [username],
   });
+}
+
+/**
+ * Helper function for getting reviews on a certain PR
+ *
+ * This is used to further check the review status
+ */
+async function getPrReviews() {
+  console.log("📋 Getting PR reviews...");
+  const octo = await getOctoClient();
+  const response = await octo.rest.pulls.listReviews({
+    owner: config.repoName.split("/")[0],
+    repo: config.repoName.split("/")[1],
+    pull_number: config.prNumber,
+  });
+
+  return response.data;
 }
 
 /**
