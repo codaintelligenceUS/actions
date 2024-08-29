@@ -90,6 +90,24 @@ async function markAsInProgressOrInReview(jira) {
     } else {
       await markAsState(jira, config.ticketKeys, "In Progress");
     }
+
+    if (config.testerUsernames) {
+      // Remove testers, if passed
+      console.log(
+        "🤔 Ensuring no reviewers are added, to ensure no testing state (e.g. this was a push, not a reviewer add action)",
+      );
+
+      const reviewers = (await getPrReviewRequestsUsers()).map((u) => u.login);
+
+      for (const tester of config.testerUsernames) {
+        if (reviewers.includes(tester)) {
+          console.log(
+            `🔍 Found tester user ${tester} in pending reviewers list - removing...`,
+          );
+          await removePrReviewRequest(tester);
+        }
+      }
+    }
   }
 
   const issue = await jira.getIssue(config.ticketKeys[0]);
@@ -203,6 +221,25 @@ async function getPrInfo() {
     owner: config.repoName.split("/")[0],
     repo: config.repoName.split("/")[1],
     pull_number: config.prNumber,
+  });
+}
+
+/**
+ * Helper function to remove a certain reviewer from the PR
+ *
+ * This is used when we have to remove the tester from the PR, for example when pushing
+ *
+ * @param {string} username The username to remove
+ */
+async function removePrReviewRequest(username) {
+  console.log(`  🧹 Removing user ${username} from review requests...`);
+  const octo = await getOctoClient();
+
+  await octo.rest.pulls.removeRequestedReviewers({
+    owner: config.repoName.split("/")[0],
+    repo: config.repoName.split("/")[1],
+    pull_number: config.prNumber,
+    reviewers: [username],
   });
 }
 
