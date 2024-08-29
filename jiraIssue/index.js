@@ -34,9 +34,7 @@ const actionsToTake = {
   markAsInProgressOrInReview,
   markAsInTesting,
   markAsTestingRejected,
-  markAsDeployedToDev: () => {
-    /** */
-  },
+  markAsDeployedToDev,
   markAsDeployedToStaging: () => {
     /** */
   },
@@ -249,6 +247,53 @@ async function markAsTestingRejected(jira) {
     rejectedReviewMessage,
   );
 }
+
+/**
+ * Marks the passed issue as Dev, or Dev No QA if no QA approval was received.
+ *
+ * This should be called on commits in `main`.
+ *
+ * Since the commits on main aren't linked to their PRs anymore, we get the PR manually from the associated field we have on them.
+ *
+ * @param {JiraApi} jira - Jira API Client
+ */
+async function markAsDeployedToDev(jira) {
+  console.log(`🔧 Marking issue as being deployed to dev...`);
+
+  console.log(`📋 Retrieving PR number...`);
+
+  for (const ticket of config.ticketKeys) {
+    console.log(`🎫 Processing ticket ${ticket}`);
+    const issue = await jira.getIssue(ticket);
+    const prUrl = issue.fields[jiraFields.PR_LINK];
+    config.prNumber = prUrl.split("/").at(-2);
+
+    console.log(`📋 PR Number: ${config.prNumber} `);
+
+    const reviews = await getPrReviews();
+    const testerReviews = reviews.filter((r) =>
+      config.testerUsernames.includes(r.user.login),
+    );
+
+    const acceptedReviews = testerReviews.filter((r) => r.state == "APPROVED");
+
+    if (acceptedReviews.length === 0) {
+      console.log(
+        "🚨 PR merged without passing QA, no tester-approved reviews found",
+      );
+      await transitionIssue(jira, ticket, "DEV NO QA");
+
+      if (!issue.fields.labels.includes("Skipped-QA"))
+        await editIssueField(ticket, "labels", [
+          ...issue.fields.labels,
+          "Skipped-QA",
+        ]);
+    } else {
+      await transitionIssue(jira, ticket, "DEV QA");
+    }
+  }
+}
+
 main();
 
 /* --------------------- Utility Functions ----------------------- */
