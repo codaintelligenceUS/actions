@@ -17,11 +17,13 @@ const jiraFields = {
 const config = {
   api: {
     protocol: "https",
-    host: getInput("jira_host"),
+    host: getInput("jira_host").replaceAll("https://", "").replaceAll("/", ""),
     email: getInput("jira_email"),
     token: getInput("jira_token"),
   },
-  ticketKeys: getInput("ticket_keys").match(jiraTicketRegex),
+  ticketKeys: [
+    ...new Set(getInput("ticket_keys").match(jiraTicketRegex) || []),
+  ],
   actionToTake: getInput("action_to_take"),
   prNumber: getInput("pr_number"),
   releaseVersion: getInput("release_version"),
@@ -36,22 +38,14 @@ const actionsToTake = {
   markAsTestingRejected,
   markAsDeployedToDev,
   markAsDeployedToStaging,
-  markAsDeployedToProduction: () => {
-    /** */
-  },
+  markAsDeployedToProduction,
 };
 
 async function main() {
   try {
     console.log("📋 Validating requested action is valid");
+    console.log("🔧 Configuration:", JSON.stringify(config, null, 4));
     const validActions = Object.keys(actionsToTake);
-
-    if (!validActions.includes(config.actionToTake)) {
-      console.error(
-        `‼️  Requested action ${config.actionToTake} is not valid. Valid actions are: \n * ${validActions.join("\n * ")}`,
-      );
-      process.exit(-1);
-    }
 
     console.log("🔌 Connecting to Jira...");
     const jira = new JiraApi({
@@ -60,6 +54,15 @@ async function main() {
       username: config.api.email,
       password: config.api.token,
     });
+
+    await getPrInfo(jira);
+
+    if (!validActions.includes(config.actionToTake)) {
+      console.error(
+        `‼️  Requested action ${config.actionToTake} is not valid. Valid actions are: \n * ${validActions.join("\n * ")}`,
+      );
+      process.exit(-1);
+    }
 
     const actionFunction = actionsToTake[config.actionToTake];
 
@@ -75,9 +78,20 @@ async function main() {
  * @param {JiraApi} jira API Client for jira
  */
 async function markAsInProgressOrInReview(jira) {
+  if (config.prNumber === "") {
+    // Just mark the issue as in progress and bail
+    await markAsState(jira, config.ticketKeys, "In Progress");
+    return;
+  }
+
   if (config.prNumber !== "") {
     console.warn("PR Number found, checking if it is draft");
-    const pr = await getPrInfo();
+    const pr = await getPrInfo(jira);
+
+    if (pr.data.closed_at !== null) {
+      console.warn("‼️  PR is marked as closed, not changing anything");
+      return;
+    }
 
     if (!pr.data.draft) {
       console.warn("PR is marked as open - transitioning issue to In Review");
@@ -108,10 +122,11 @@ async function markAsInProgressOrInReview(jira) {
   const issue = await jira.getIssue(config.ticketKeys[0]);
 
   // Update the PR Description
-  const mockupLink =
-    issue.fields.customfield_10558.length === 0
-      ? "None available"
-      : `[ ${issue.fields[jiraFields.DESIGN_LINK][0].displayName} ](${issue.fields[jiraFields.DESIGN_LINK][0].url})`;
+  const designFieldValue = issue.fields[jiraFields.DESIGN_LINK] ?? "";
+  const hasMockup = designFieldValue !== "";
+  const mockupLink = hasMockup
+    ? "None available"
+    : `[ ${designFieldValue.displayName} ](${designFieldValue.url})`;
 
   const components = issue.fields.components
     .reduce((prev, c) => [...prev, c.name.split(" ")[1].toLowerCase()], [])
@@ -134,7 +149,7 @@ async function markAsInProgressOrInReview(jira) {
 | Components | ${issue.fields.components.map((c) => c.name).join(" ")} |
 | Product Area | ${issue.fields[jiraFields.PRODUCT_AREA].value} |
 | Clients | ${issue.fields[jiraFields.CLIENTS].map((f) => f.value).join(", ")} |
-| Mockup | ${mockupLink} |
+| Mockup | ${mockupLink ?? "Not Available"} |
 
 ---
 
@@ -172,7 +187,7 @@ async function markAsInTesting(jira) {
     process.exit(-1);
   }
 
-  const pr = await getPrInfo();
+  const pr = await getPrInfo(jira);
 
   if (pr.data.draft) {
     console.error(
@@ -211,7 +226,7 @@ async function markAsTestingRejected(jira) {
     process.exit(-1);
   }
 
-  const pr = await getPrInfo();
+  const pr = await getPrInfo(jira);
 
   if (pr.data.draft) {
     console.error(
@@ -220,17 +235,38 @@ async function markAsTestingRejected(jira) {
     process.exit(0);
   }
 
-  const reviews = await getPrReviews();
-  const testerReviews = reviews.filter((r) =>
-    config.testerUsernames.includes(r.user.login),
-  );
-  const rejectedReviews = testerReviews.filter(
-    (r) => r.state === "CHANGES_REQUESTED",
+  console.log("🤔 Checking if review was re-requested from QA...");
+  const requestedReviewers = (await getPrReviewRequestsUsers()).filter((user) =>
+    config.testerUsernames.includes(user.login),
   );
 
-  if (rejectedReviews.length === 0) {
-    console.log("✅ No rejected reviews - exiting");
+  if (requestedReviewers.length > 0) {
+    console.log("📝 PR is waiting on a re-request, bailing");
+    return;
+  }
+
+  const reviews = await getPrReviews();
+  /**
+   * The tester reviewers may have multiple ones left - we only need the last one
+   * to be an approval
+   *
+   * @type Optional<typeof reviews[0]>
+   */
+  const latestReview = reviews.toReversed().at(0);
+  const isLatestReviewFromQA = config.testerUsernames.includes(
+    latestReview.user.login,
+  );
+
+  console.log(JSON.stringify(reviews.toReversed(), null, 4));
+
+  if (!isLatestReviewFromQA) {
+    console.log("🔍 Latest review not from QA, marking as in review...");
     await markAsInProgressOrInReview(jira);
+    return;
+  }
+
+  if (!latestReview || latestReview.state === "APPROVED") {
+    console.log("✅ No rejected reviews - exiting");
     process.exit(0);
   }
 
@@ -238,7 +274,7 @@ async function markAsTestingRejected(jira) {
     "😵 Rejected review found - saving review comment and transitioning issue to Testing Rejected",
   );
   transitionIssue(jira, config.ticketKeys[0], "Testing Rejected");
-  const rejectedReviewMessage = rejectedReviews[0].body;
+  const rejectedReviewMessage = latestReview.body;
   await editIssueField(
     config.ticketKeys[0],
     jiraFields.TEST_REJECTION_REASON,
@@ -281,6 +317,18 @@ async function markAsDeployedToDev(jira) {
       );
       await transitionIssue(jira, ticket, "DEV NO QA");
 
+      if (issue.fields[jiraFields.TEST_REJECTION_REASON] === "") {
+        console.log(
+          "🚨 No previous QA review found, setting template test reject reason",
+        );
+
+        await editIssueField(
+          config.ticketKeys[0],
+          jiraFields.TEST_REJECTION_REASON,
+          "PR merged skipping QA flow",
+        );
+      }
+
       if (!issue.fields.labels.includes("Skipped-QA"))
         await editIssueField(ticket, "labels", [
           ...issue.fields.labels,
@@ -314,6 +362,32 @@ async function markAsDeployedToStaging(jira) {
   }
 }
 
+/**
+ * Marks the passed issue as Promoted
+ *
+ * This should be called on promote, with the changelog list passed as param for ticket keys
+ *
+ * @param {JiraApi} jira - Jira API Client
+ */
+async function markAsDeployedToProduction(jira) {
+  console.log(`🔧 Marking issue as being deployed to promote...`);
+
+  const releaseId = await ensureReleaseExists(
+    jira,
+    config.releaseVersion,
+    true,
+  );
+
+  for (const ticket of config.ticketKeys) {
+    console.log(`🎫 Processing ticket ${ticket}`);
+    console.log(
+      `    🚀 Setting release version to ${config.releaseVersion}...`,
+    );
+    await editIssueField(ticket, "fixVersions", [{ id: releaseId }]);
+    await transitionIssue(jira, ticket, "Released");
+  }
+}
+
 main();
 
 /* --------------------- Utility Functions ----------------------- */
@@ -327,16 +401,72 @@ async function getOctoClient() {
 
 /**
  * Helper function for getting the currently passed PR info
+ *
+ * @param {JiraApi} jira - Jira API connector
  */
-async function getPrInfo() {
+async function getPrInfo(jira) {
+  if (
+    config.prNumber === "" &&
+    config.ticketKeys.length === 0 &&
+    config.releaseVersion === ""
+  ) {
+    console.log(
+      "🚧 Cannot run without either PR Number or ticket keys, exiting.",
+    );
+    process.exit(0);
+  }
+
+  if (["markAsDeployedToStaging"].includes(config.actionToTake)) {
+    console.log("🤔 Deploy step requested - no PR info needed");
+    return;
+  }
+
+  if (
+    config.actionToTake === "markAsDeployedToProduction" &&
+    config.ticketKeys.length > 0
+  ) {
+    console.log("💡 Production note requested - ignoring keys from PR");
+    return;
+  }
+
   console.log("🎋 Getting PR info...");
+
+  if (config.prNumber === "" && config.ticketKeys.length > 0) {
+    console.log("? No PR number found - getting from jira link");
+
+    const issue = await jira.getIssue(config.ticketKeys[0]);
+    const prField = issue.fields[jiraFields.PR_LINK];
+
+    if (!prField) {
+      console.log(`🤷 No PR field on issue ${config.ticketKeys[0]} - bailing`);
+      return;
+    }
+
+    console.log(`✅ Found PR URL: ${prField} - extracting PR number`);
+    config.prNumber = prField.split("/").at(-2);
+  }
+
   const octo = await getOctoClient();
 
-  return await octo.rest.pulls.get({
+  console.log(`📋 Getting PR info for ${config.prNumber}...`);
+  const response = await octo.rest.pulls.get({
     owner: config.repoName.split("/")[0],
     repo: config.repoName.split("/")[1],
     pull_number: config.prNumber,
   });
+
+  // Check if we have a release PR branch
+  if (response.data.head.ref.includes("release")) {
+    console.log("💡 Release branch detected - exiting...");
+    process.exit(0);
+  }
+
+  // Because GitHub's environment variables are wonky, if we have a PR number
+  // fallback on the branch name from the PR instead
+  config.ticketKeys = response.data.head.ref.match(jiraTicketRegex);
+  console.log("💡 Updated ticketKeys from PR:", config.ticketKeys);
+
+  return response;
 }
 
 /**
@@ -389,7 +519,7 @@ async function getPrReviewRequestsUsers() {
     pull_number: config.prNumber,
   });
 
-  return response.data.users;
+  return response.data.users ?? [];
 }
 
 /**
@@ -482,6 +612,11 @@ async function parseComment(comment) {
  * @param {string} stateName - The state to change to
  */
 async function transitionIssue(jira, issueId, stateName) {
+  const issue = await jira.getIssue(issueId);
+  if (issue.fields.status.name === stateName) {
+    console.log("\tCurrent state same as requested one, bailing");
+    return;
+  }
   const transition = await getTransition(jira, issueId, stateName);
   console.log(`\tTransitioning issue ${issueId} to ${transition.name}`);
 
@@ -520,8 +655,6 @@ async function editIssueField(issue, field, value) {
       }),
     },
   );
-
-  console.log(await response.text());
 }
 
 /**
@@ -563,12 +696,15 @@ function removeEmoji(content) {
  *
  * @param {JiraApi} jira - The Jira Client instance
  * @param {string} version - The version to check
+ * @param {boolean} markAsReleased - Whether to mark the version as released as well
  * @returns {Promise<number>} The release version ID
  */
-async function ensureReleaseExists(jira, version) {
+async function ensureReleaseExists(jira, version, markAsReleased) {
   console.log(`📋 Ensuring release version ${config.releaseVersion} exists...`);
 
-  const projectKey = config.ticketKeys[0].split("-")[0];
+  const projectKey = config.ticketKeys
+    ? config.ticketKeys[0].split("-")[0]
+    : "FN";
   const project = await jira.getProject(projectKey);
 
   const releases = await jira.getVersions(projectKey);
@@ -577,19 +713,26 @@ async function ensureReleaseExists(jira, version) {
     (r) => r.name === version && r.projectId == project.id,
   );
 
+  const today = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDay()}`;
+
   if (existingRelease) {
-    console.log(`✅ Release exists, returning ID`);
+    console.log(`✅ Release exists, marking release as done and returning ID`);
+    await jira.updateVersion({
+      id: existingRelease.id,
+      startDate: existingRelease.startDate,
+      released: true,
+      releaseDate: today,
+    });
     return existingRelease.id;
   }
 
   console.log("🔍 Release does not exist, creating...");
-  const today = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDay()}`;
   const response = await jira.createVersion({
     name: version,
     description: `✨ New Footprint release`,
     projectId: project.id,
-    released: false,
     startDate: today,
+    released: false,
   });
 
   return response.id;
