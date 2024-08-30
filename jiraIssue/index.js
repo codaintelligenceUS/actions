@@ -35,9 +35,7 @@ const actionsToTake = {
   markAsInTesting,
   markAsTestingRejected,
   markAsDeployedToDev,
-  markAsDeployedToStaging: () => {
-    /** */
-  },
+  markAsDeployedToStaging,
   markAsDeployedToProduction: () => {
     /** */
   },
@@ -294,6 +292,28 @@ async function markAsDeployedToDev(jira) {
   }
 }
 
+/**
+ * Marks the passed issue as Staging, assigning its release field as well
+ *
+ * This should be called on release, with the changelog list passed as param for ticket keys
+ *
+ * @param {JiraApi} jira - Jira API Client
+ */
+async function markAsDeployedToStaging(jira) {
+  console.log(`🔧 Marking issue as being deployed to staging...`);
+
+  const releaseId = await ensureReleaseExists(jira, config.releaseVersion);
+
+  for (const ticket of config.ticketKeys) {
+    console.log(`🎫 Processing ticket ${ticket}`);
+    console.log(
+      `    🚀 Setting release version to ${config.releaseVersion}...`,
+    );
+    await editIssueField(ticket, "fixVersions", [{ id: releaseId }]);
+    await transitionIssue(jira, ticket, "Staging");
+  }
+}
+
 main();
 
 /* --------------------- Utility Functions ----------------------- */
@@ -479,7 +499,7 @@ async function transitionIssue(jira, issueId, stateName) {
  */
 async function editIssueField(issue, field, value) {
   console.log(
-    `📝 Editing field ${field} on issue ${issue} with value ${value}...`,
+    `📝 Editing field ${JSON.stringify(field)} on issue ${JSON.stringify(issue)} with value ${JSON.stringify(value)}...`,
   );
 
   const response = await fetch(
@@ -500,6 +520,8 @@ async function editIssueField(issue, field, value) {
       }),
     },
   );
+
+  console.log(await response.text());
 }
 
 /**
@@ -534,4 +556,41 @@ function removeEmoji(content) {
   }
   content = new TextDecoder("utf-8").decode(conByte);
   return content.replaceAll("0000", "");
+}
+
+/**
+ * Helper function to ensure a certain release version exists
+ *
+ * @param {JiraApi} jira - The Jira Client instance
+ * @param {string} version - The version to check
+ * @returns {Promise<number>} The release version ID
+ */
+async function ensureReleaseExists(jira, version) {
+  console.log(`📋 Ensuring release version ${config.releaseVersion} exists...`);
+
+  const projectKey = config.ticketKeys[0].split("-")[0];
+  const project = await jira.getProject(projectKey);
+
+  const releases = await jira.getVersions(projectKey);
+
+  const existingRelease = releases.find(
+    (r) => r.name === version && r.projectId == project.id,
+  );
+
+  if (existingRelease) {
+    console.log(`✅ Release exists, returning ID`);
+    return existingRelease.id;
+  }
+
+  console.log("🔍 Release does not exist, creating...");
+  const today = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDay()}`;
+  const response = await jira.createVersion({
+    name: version,
+    description: `✨ New Footprint release`,
+    projectId: project.id,
+    released: false,
+    startDate: today,
+  });
+
+  return response.id;
 }
