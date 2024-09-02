@@ -3,6 +3,9 @@ import JiraApi from "jira-client";
 import { Octokit } from "octokit";
 import j2m from "jira2md";
 
+/** Extra usernames that can block PRs. Only affects the `checkForTesterApproval` step */
+const TESTER_BACKUPS = "bogdan.calapod,octavia.ngrigorescu";
+
 const jiraTicketRegex = /\bFN-\d+\b/g;
 const accountIdRegex = /\[~accountid:(.*?)\]/g;
 
@@ -33,6 +36,7 @@ const config = {
 };
 
 const actionsToTake = {
+  checkForTesterApproval,
   markAsInProgressOrInReview,
   markAsInTesting,
   markAsTestingRejected,
@@ -68,6 +72,7 @@ async function main() {
 
     await actionFunction(jira);
   } catch (error) {
+    console.error(error);
     setFailed(error.message);
   }
 }
@@ -100,21 +105,22 @@ async function markAsInProgressOrInReview(jira) {
       await markAsState(jira, config.ticketKeys, "In Progress");
     }
 
-    if (config.testerUsernames) {
-      // Remove testers, if passed
-      console.log(
-        "🤔 Ensuring no reviewers are added, to ensure no testing state (e.g. this was a push, not a reviewer add action)",
-      );
+    if (!config.testerUsernames) {
+      console.log("🤷 No tester usernames passed, bailing");
+    }
+    // Remove testers, if passed
+    console.log(
+      "🤔 Ensuring no reviewers are added, to ensure no testing state (e.g. this was a push, not a reviewer add action)",
+    );
 
-      const reviewers = (await getPrReviewRequestsUsers()).map((u) => u.login);
+    const reviewers = (await getPrReviewRequestsUsers()).map((u) => u.login);
 
-      for (const tester of config.testerUsernames) {
-        if (reviewers.includes(tester)) {
-          console.log(
-            `🔍 Found tester user ${tester} in pending reviewers list - removing...`,
-          );
-          await removePrReviewRequest(tester);
-        }
+    for (const tester of config.testerUsernames) {
+      if (reviewers.includes(tester)) {
+        console.log(
+          `🔍 Found tester user ${tester} in pending reviewers list - removing...`,
+        );
+        await removePrReviewRequest(tester);
       }
     }
   }
@@ -123,7 +129,8 @@ async function markAsInProgressOrInReview(jira) {
 
   // Update the PR Description
   const designFieldValue = issue.fields[jiraFields.DESIGN_LINK] ?? "";
-  const hasMockup = designFieldValue !== "";
+  const hasMockup =
+    designFieldValue !== "" && "displayName" in designFieldValue;
   const mockupLink = hasMockup
     ? "None available"
     : `[ ${designFieldValue.displayName} ](${designFieldValue.url})`;
@@ -148,12 +155,12 @@ async function markAsInProgressOrInReview(jira) {
 | Priority | <img src="${issue.fields.priority.iconUrl}" width="16px" height="16px" /> ${issue.fields.priority.name} |
 | Components | ${issue.fields.components.map((c) => c.name).join(" ")} |
 | Product Area | ${issue.fields[jiraFields.PRODUCT_AREA].value} |
-| Clients | ${issue.fields[jiraFields.CLIENTS].map((f) => f.value).join(", ")} |
+| Clients | ${(issue.fields[jiraFields.CLIENTS] ?? []).map((f) => f.value).join(", ")} |
 | Mockup | ${mockupLink ?? "Not Available"} |
 
 ---
 
-${j2m.to_markdown(issue.fields.description)}
+${j2m.to_markdown(issue.fields.description ?? "")}
 
 <details>
   <summary> 💬 ${issue.fields.comment.comments.length} Comments </summary>
@@ -388,6 +395,33 @@ async function markAsDeployedToProduction(jira) {
   }
 }
 
+/**
+ * Check if the PR has passed at least one QA approval
+ *
+ * @param {JiraApi} jira - JIRA API Client
+ */
+async function checkForTesterApproval(jira) {
+  console.log("📋 Checking for QA Approvals...");
+
+  const reviews = await getPrReviews();
+  console.log(JSON.stringify(reviews, null, 4));
+  const testerUsernames = [
+    ...config.testerUsernames,
+    ...TESTER_BACKUPS.split(","),
+  ];
+
+  const acceptedReviews = reviews.filter((r) =>
+    testerUsernames.includes(r.user.login),
+  );
+
+  if (acceptedReviews?.length === 0) {
+    console.error("🚨 No approving reviews found");
+    process.exit(-1);
+  }
+
+  console.log("✅ Accept found from QA");
+}
+
 main();
 
 /* --------------------- Utility Functions ----------------------- */
@@ -494,6 +528,9 @@ async function removePrReviewRequest(username) {
  * This is used to further check the review status
  */
 async function getPrReviews() {
+  if (config.prNumber === "") {
+    return [];
+  }
   console.log("📋 Getting PR reviews...");
   const octo = await getOctoClient();
   const response = await octo.rest.pulls.listReviews({
@@ -518,8 +555,8 @@ async function getPrReviewRequestsUsers() {
     repo: config.repoName.split("/")[1],
     pull_number: config.prNumber,
   });
-
-  return response.data.users ?? [];
+  console.log(`\t${response.data.users}`);
+  return response.data?.users ?? [];
 }
 
 /**
