@@ -17,6 +17,17 @@ const jiraFields = {
   TEST_REJECTION_REASON: "customfield_10607",
 };
 
+const statuses = {
+  backlog: "⚪ Backlog",
+  inProgress: "🔵 In Progress",
+  inReview: "🔵 In Review",
+  inQa: "🟠 In QA",
+  qaRejected: "🔴 QA Rejected",
+  dev: "🟠 Dev",
+  staging: "🟠 Staging",
+  promoted: "🟢 Promoted",
+};
+
 const config = {
   api: {
     protocol: "https",
@@ -85,7 +96,7 @@ async function main() {
 async function markAsInProgressOrInReview(jira) {
   if (config.prNumber === "") {
     // Just mark the issue as in progress and bail
-    await markAsState(jira, config.ticketKeys, "In Progress");
+    await markAsState(jira, config.ticketKeys, statuses.inProgress);
     return;
   }
 
@@ -100,9 +111,9 @@ async function markAsInProgressOrInReview(jira) {
 
     if (!pr.data.draft) {
       console.warn("PR is marked as open - transitioning issue to In Review");
-      await markAsState(jira, config.ticketKeys, "In Review");
+      await markAsState(jira, config.ticketKeys, statuses.inReview);
     } else {
-      await markAsState(jira, config.ticketKeys, "In Progress");
+      await markAsState(jira, config.ticketKeys, statuses.inProgress);
     }
 
     if (!config.testerUsernames) {
@@ -215,7 +226,7 @@ async function markAsInTesting(jira) {
     process.exit(0);
   }
 
-  await markAsState(jira, config.ticketKeys, "In Testing");
+  await markAsState(jira, config.ticketKeys, statuses.inQa);
 }
 
 /**
@@ -280,7 +291,7 @@ async function markAsTestingRejected(jira) {
   console.log(
     "😵 Rejected review found - saving review comment and transitioning issue to Testing Rejected",
   );
-  transitionIssue(jira, config.ticketKeys[0], "Testing Rejected");
+  transitionIssue(jira, config.ticketKeys[0], statuses.qaRejected);
   const rejectedReviewMessage = latestReview.body;
   await editIssueField(
     config.ticketKeys[0],
@@ -316,34 +327,7 @@ async function markAsDeployedToDev(jira) {
       config.testerUsernames.includes(r.user.login),
     );
 
-    const acceptedReviews = testerReviews.filter((r) => r.state == "APPROVED");
-
-    if (acceptedReviews.length === 0) {
-      console.log(
-        "🚨 PR merged without passing QA, no tester-approved reviews found",
-      );
-      await transitionIssue(jira, ticket, "DEV NO QA");
-
-      if (issue.fields[jiraFields.TEST_REJECTION_REASON] === "") {
-        console.log(
-          "🚨 No previous QA review found, setting template test reject reason",
-        );
-
-        await editIssueField(
-          config.ticketKeys[0],
-          jiraFields.TEST_REJECTION_REASON,
-          "PR merged skipping QA flow",
-        );
-      }
-
-      if (!issue.fields.labels.includes("Skipped-QA"))
-        await editIssueField(ticket, "labels", [
-          ...issue.fields.labels,
-          "Skipped-QA",
-        ]);
-    } else {
-      await transitionIssue(jira, ticket, "DEV QA");
-    }
+    await transitionIssue(jira, ticket, statuses.dev);
   }
 }
 
@@ -365,7 +349,7 @@ async function markAsDeployedToStaging(jira) {
       `    🚀 Setting release version to ${config.releaseVersion}...`,
     );
     await editIssueField(ticket, "fixVersions", [{ id: releaseId }]);
-    await transitionIssue(jira, ticket, "Staging");
+    await transitionIssue(jira, ticket, statuses.staging);
   }
 }
 
@@ -391,7 +375,7 @@ async function markAsDeployedToProduction(jira) {
       `    🚀 Setting release version to ${config.releaseVersion}...`,
     );
     await editIssueField(ticket, "fixVersions", [{ id: releaseId }]);
-    await transitionIssue(jira, ticket, "Released");
+    await transitionIssue(jira, ticket, statuses.promoted);
   }
 }
 
@@ -404,7 +388,6 @@ async function checkForTesterApproval(jira) {
   console.log("📋 Checking for QA Approvals...");
 
   const reviews = await getPrReviews();
-  console.log(JSON.stringify(reviews, null, 4));
   const testerUsernames = [
     ...config.testerUsernames,
     ...TESTER_BACKUPS.split(","),
@@ -646,7 +629,7 @@ async function parseComment(comment) {
  *
  * @param {JiraApi} jira - The Jira Client instance
  * @param {string} issueId - The issue ID to change
- * @param {string} stateName - The state to change to
+ * @param {keyof typeof statuses} stateName - The state to change to
  */
 async function transitionIssue(jira, issueId, stateName) {
   const issue = await jira.getIssue(issueId);
@@ -699,7 +682,7 @@ async function editIssueField(issue, field, value) {
  *
  * @param {JiraApi} jira - The Jira Client instance
  * @param {string[]} issues - The issue IDs to change
- * @param {string} stateName - The state to change to
+ * @param {keyof typeof statuses} stateName - The state to change to
  */
 async function markAsState(jira, issues, stateName) {
   console.log(`🏃 Marking issues ${issues} as ${stateName}...`);
