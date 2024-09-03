@@ -5,6 +5,8 @@ import j2m from "jira2md";
 
 /** Extra usernames that can block PRs. Only affects the `checkForTesterApproval` step */
 const TESTER_BACKUPS = "bogdan.calapod,octavia.ngrigorescu";
+/** Label to be applied for checking tester backups as well as QA members */
+const TESTER_APPROVAL_LABEL_SKIP = "qa-test-bypass";
 
 const jiraTicketRegex = /\bFN-\d+\b/g;
 const accountIdRegex = /\[~accountid:(.*?)\]/g;
@@ -25,7 +27,7 @@ const statuses = {
   qaRejected: "🔴 QA Rejected",
   dev: "🟠 Dev",
   staging: "🟠 Staging",
-  promoted: "🟢 Promoted",
+  production: "🟢 Production",
 };
 
 const config = {
@@ -104,8 +106,15 @@ async function markAsInProgressOrInReview(jira) {
     console.warn("PR Number found, checking if it is draft");
     const pr = await getPrInfo(jira);
 
-    if (pr.data.closed_at !== null) {
-      console.warn("‼️  PR is marked as closed, not changing anything");
+    if (pr.data.closed_at !== null && !pr.data.merged) {
+      console.warn("‼️  PR is marked as closed, moving it to backlog");
+      await markAsState(jira, config.ticketKeys, statuses.backlog);
+      return;
+    }
+
+    if (pr.data.closed_at !== null && pr.data.merged) {
+      console.log("🟠 Marking as merged to dev");
+      await markAsState(jira, config.ticketKeys, statuses.dev);
       return;
     }
 
@@ -135,59 +144,6 @@ async function markAsInProgressOrInReview(jira) {
       }
     }
   }
-
-  const issue = await jira.getIssue(config.ticketKeys[0]);
-
-  // Update the PR Description
-  const designFieldValue = issue.fields[jiraFields.DESIGN_LINK] ?? "";
-  const hasMockup =
-    designFieldValue !== "" && "displayName" in designFieldValue;
-  const mockupLink = hasMockup
-    ? "None available"
-    : `[ ${designFieldValue.displayName} ](${designFieldValue.url})`;
-
-  const components = issue.fields.components
-    .reduce((prev, c) => [...prev, c.name.split(" ")[1].toLowerCase()], [])
-    .join("|");
-  const componentsTitle = components === "" ? "" : `(${components})`;
-
-  const title = `${issue.fields.issuetype.name.toLowerCase()}${componentsTitle}: ${removeEmoji(
-    issue.fields.summary,
-  ).trim()} | ${issue.key}`;
-
-  const description = `
-
-## [${issue.key}](https://${config.api.host}/browse/${issue.key}/) | ${issue.fields.summary}
-
-| Info | Value |
-|------|-------|
-| Issue Type | ![](${issue.fields.issuetype.iconUrl}) ${issue.fields.issuetype.name} | 
-| Assignee | ![](${issue.fields.assignee.avatarUrls["16x16"]}) ${issue.fields.assignee.displayName} |
-| Priority | <img src="${issue.fields.priority.iconUrl}" width="16px" height="16px" /> ${issue.fields.priority.name} |
-| Components | ${issue.fields.components.map((c) => c.name).join(" ")} |
-| Product Area | ${issue.fields[jiraFields.PRODUCT_AREA].value} |
-| Clients | ${(issue.fields[jiraFields.CLIENTS] ?? []).map((f) => f.value).join(", ")} |
-| Mockup | ${mockupLink ?? "Not Available"} |
-
----
-
-${j2m.to_markdown(issue.fields.description ?? "")}
-
-<details>
-  <summary> 💬 ${issue.fields.comment.comments.length} Comments </summary>
-
-  <table>
-  ${(await Promise.all(issue.fields.comment.comments.map(parseComment))).join("\n")}
-  </table>
-</details>
-`;
-
-  await editPrDescription(title, description);
-  await editIssueField(
-    issue.key,
-    jiraFields.PR_LINK,
-    `https://github.com/${config.repoName}/pull/${config.prNumber}/`,
-  );
 }
 
 /**
@@ -316,17 +272,6 @@ async function markAsDeployedToDev(jira) {
 
   for (const ticket of config.ticketKeys) {
     console.log(`🎫 Processing ticket ${ticket}`);
-    const issue = await jira.getIssue(ticket);
-    const prUrl = issue.fields[jiraFields.PR_LINK];
-    config.prNumber = prUrl.split("/").at(-2);
-
-    console.log(`📋 PR Number: ${config.prNumber} `);
-
-    const reviews = await getPrReviews();
-    const testerReviews = reviews.filter((r) =>
-      config.testerUsernames.includes(r.user.login),
-    );
-
     await transitionIssue(jira, ticket, statuses.dev);
   }
 }
@@ -375,7 +320,7 @@ async function markAsDeployedToProduction(jira) {
       `    🚀 Setting release version to ${config.releaseVersion}...`,
     );
     await editIssueField(ticket, "fixVersions", [{ id: releaseId }]);
-    await transitionIssue(jira, ticket, statuses.promoted);
+    await transitionIssue(jira, ticket, statuses.production);
   }
 }
 
@@ -387,15 +332,26 @@ async function markAsDeployedToProduction(jira) {
 async function checkForTesterApproval(jira) {
   console.log("📋 Checking for QA Approvals...");
 
-  const reviews = await getPrReviews();
-  const testerUsernames = [
-    ...config.testerUsernames,
-    ...TESTER_BACKUPS.split(","),
-  ];
+  const labels = await getPrLabels();
+  const hasSkipLabel = labels.includes(TESTER_APPROVAL_LABEL_SKIP);
 
-  const acceptedReviews = reviews.filter((r) =>
-    testerUsernames.includes(r.user.login),
+  if (!hasSkipLabel) {
+    console.warn(
+      `⚠️  Label ${TESTER_APPROVAL_LABEL_SKIP} not found in PR labels, checking only reviews from QA members`,
+    );
+  }
+
+  const reviews = await getPrReviews();
+  const testerUsernames = hasSkipLabel
+    ? [...config.testerUsernames, ...TESTER_BACKUPS.split(",")]
+    : config.testerUsernames;
+  console.log(JSON.stringify(reviews, null, 4));
+
+  const acceptedReviews = reviews.filter(
+    (r) => testerUsernames.includes(r.user.login) && r.state === "APPROVED",
   );
+
+  console.log(JSON.stringify(acceptedReviews, null, 4));
 
   if (acceptedReviews?.length === 0) {
     console.error("🚨 No approving reviews found");
@@ -506,6 +462,24 @@ async function removePrReviewRequest(username) {
 }
 
 /**
+ * Helper function for getting labels on a certain PR
+ */
+async function getPrLabels() {
+  if (config.prNumber === "") {
+    return [];
+  }
+  console.log("🏷️ Getting PR labels...");
+  const octo = await getOctoClient();
+  const response = await octo.rest.pulls.get({
+    owner: config.repoName.split("/")[0],
+    repo: config.repoName.split("/")[1],
+    pull_number: config.prNumber,
+  });
+
+  return response.data.labels.map((label) => label.name);
+}
+
+/**
  * Helper function for getting reviews on a certain PR
  *
  * This is used to further check the review status
@@ -520,6 +494,7 @@ async function getPrReviews() {
     owner: config.repoName.split("/")[0],
     repo: config.repoName.split("/")[1],
     pull_number: config.prNumber,
+    per_page: 10000000,
   });
 
   return response.data;
@@ -538,7 +513,6 @@ async function getPrReviewRequestsUsers() {
     repo: config.repoName.split("/")[1],
     pull_number: config.prNumber,
   });
-  console.log(`\t${response.data.users}`);
   return response.data?.users ?? [];
 }
 
@@ -633,6 +607,7 @@ async function parseComment(comment) {
  */
 async function transitionIssue(jira, issueId, stateName) {
   const issue = await jira.getIssue(issueId);
+  await updateIssueDescription(jira);
   if (issue.fields.status.name === stateName) {
     console.log("\tCurrent state same as requested one, bailing");
     return;
@@ -657,24 +632,21 @@ async function editIssueField(issue, field, value) {
     `📝 Editing field ${JSON.stringify(field)} on issue ${JSON.stringify(issue)} with value ${JSON.stringify(value)}...`,
   );
 
-  const response = await fetch(
-    `https://${config.api.host}/rest/api/2/issue/${issue}`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Basic ${Buffer.from(
-          `${config.api.email}:${config.api.token}`,
-        ).toString("base64")}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Force-Accept-Language": true,
-        "Accept-Language": "en-US",
-      },
-      body: JSON.stringify({
-        fields: { [field]: value },
-      }),
+  await fetch(`https://${config.api.host}/rest/api/2/issue/${issue}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Basic ${Buffer.from(
+        `${config.api.email}:${config.api.token}`,
+      ).toString("base64")}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Force-Accept-Language": true,
+      "Accept-Language": "en-US",
     },
-  );
+    body: JSON.stringify({
+      fields: { [field]: value },
+    }),
+  });
 }
 
 /**
@@ -711,6 +683,61 @@ function removeEmoji(content) {
   return content.replaceAll("0000", "");
 }
 
+/** Helper to update the PR description
+ *
+ * @param {JiraApi} jira - The Jira Client instance
+ */
+async function updateIssueDescription(jira) {
+  const issue = await jira.getIssue(config.ticketKeys[0]);
+
+  // Update the PR Description
+  const designFieldValue = issue.fields[jiraFields.DESIGN_LINK] ?? "";
+  const mockupLink = `[ ${designFieldValue.displayName} ](${designFieldValue.url})`;
+
+  const components = issue.fields.components
+    .reduce((prev, c) => [...prev, c.name.split(" ")[1].toLowerCase()], [])
+    .join("|");
+  const componentsTitle = components === "" ? "" : `(${components})`;
+
+  const title = `${issue.fields.issuetype.name.toLowerCase()}${componentsTitle}: ${removeEmoji(
+    issue.fields.summary,
+  ).trim()} | ${issue.key}`;
+
+  const description = `
+
+## [${issue.key}](https://${config.api.host}/browse/${issue.key}/) | ${issue.fields.summary}
+
+| Info | Value |
+|------|-------|
+| Issue Type | ![](${issue.fields.issuetype.iconUrl}) ${issue.fields.issuetype.name} | 
+| Assignee | ![](${issue.fields.assignee.avatarUrls["16x16"]}) ${issue.fields.assignee.displayName} |
+| Priority | <img src="${issue.fields.priority.iconUrl}" width="16px" height="16px" /> ${issue.fields.priority.name} |
+| Components | ${issue.fields.components.map((c) => c.name).join(" ")} |
+| Product Area | ${(issue.fields[jiraFields.PRODUCT_AREA] ?? { value: "N/A" }).value} |
+| Clients | ${(issue.fields[jiraFields.CLIENTS] ?? []).map((f) => f.value).join(", ")} |
+| Mockup | ${mockupLink.includes("undefined") ? "Not Available" : mockupLink} |
+
+---
+
+${j2m.to_markdown(issue.fields.description ?? "")}
+
+<details>
+  <summary> 💬 ${issue.fields.comment.comments.length} Comments </summary>
+
+  <table>
+  ${(await Promise.all(issue.fields.comment.comments.map(parseComment))).join("\n")}
+  </table>
+</details>
+`;
+
+  await editIssueField(
+    issue.key,
+    jiraFields.PR_LINK,
+    `https://github.com/${config.repoName}/pull/${config.prNumber}/`,
+  );
+  await editPrDescription(title, description);
+}
+
 /**
  * Helper function to ensure a certain release version exists
  *
@@ -732,16 +759,22 @@ async function ensureReleaseExists(jira, version, markAsReleased) {
   const existingRelease = releases.find(
     (r) => r.name === version && r.projectId == project.id,
   );
+  const today = new Date();
 
-  const today = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDay()}`;
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0"); // Months are zero-based, so add 1
+  const day = String(today.getDate()).padStart(2, "0"); // Pad single digit days with a leading zero
 
+  const formattedDate = process.env.RELEASE_DATE ?? `${year}-${month}-${day}`;
   if (existingRelease) {
+    const startDate = process.env.START_DATE ?? existingRelease.startDate;
+
     console.log(`✅ Release exists, marking release as done and returning ID`);
     await jira.updateVersion({
       id: existingRelease.id,
-      startDate: existingRelease.startDate,
-      released: true,
-      releaseDate: today,
+      startDate,
+      released: markAsReleased,
+      releaseDate: formattedDate,
     });
     return existingRelease.id;
   }
@@ -751,8 +784,8 @@ async function ensureReleaseExists(jira, version, markAsReleased) {
     name: version,
     description: `✨ New Footprint release`,
     projectId: project.id,
-    startDate: today,
-    released: false,
+    startDate: formattedDate,
+    released: markAsReleased,
   });
 
   return response.id;
