@@ -4,7 +4,7 @@ import { Octokit } from "octokit";
 import j2m from "jira2md";
 
 /** Extra usernames that can block PRs. Only affects the `checkForTesterApproval` step */
-const TESTER_BACKUPS = "bogdan.calapod,octavia.ngrigorescu";
+const TESTER_BACKUPS = "bogdan.calapod,octavian.grigorescu";
 /** Label to be applied for checking tester backups as well as QA members */
 const TESTER_APPROVAL_LABEL_SKIP = "qa-test-bypass";
 
@@ -345,7 +345,7 @@ async function checkForTesterApproval(jira) {
   const testerUsernames = hasSkipLabel
     ? [...config.testerUsernames, ...TESTER_BACKUPS.split(",")]
     : config.testerUsernames;
-  console.log(JSON.stringify(reviews, null, 4));
+  console.log(reviews.length);
 
   const acceptedReviews = reviews.filter(
     (r) => testerUsernames.includes(r.user.login) && r.state === "APPROVED",
@@ -490,14 +490,23 @@ async function getPrReviews() {
   }
   console.log("📋 Getting PR reviews...");
   const octo = await getOctoClient();
-  const response = await octo.rest.pulls.listReviews({
-    owner: config.repoName.split("/")[0],
-    repo: config.repoName.split("/")[1],
-    pull_number: config.prNumber,
-    per_page: 10000000,
-  });
+  let page = 1;
+  let reviews = [];
+  let response;
 
-  return response.data;
+  do {
+    console.log(`\tGetting page ${page} of reviews...`);
+    response = await octo.rest.pulls.listReviews({
+      owner: config.repoName.split("/")[0],
+      repo: config.repoName.split("/")[1],
+      pull_number: config.prNumber,
+      page,
+    });
+    reviews = [...reviews, ...response.data];
+    page++;
+  } while (response.data.length > 0);
+
+  return reviews;
 }
 
 /**
