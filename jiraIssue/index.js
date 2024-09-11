@@ -331,7 +331,6 @@ async function markAsDeployedToProduction(jira) {
  */
 async function checkForTesterApproval(jira) {
   console.log("📋 Checking for QA Approvals...");
-
   const labels = await getPrLabels();
   const hasSkipLabel = labels.includes(TESTER_APPROVAL_LABEL_SKIP);
 
@@ -345,7 +344,6 @@ async function checkForTesterApproval(jira) {
   const testerUsernames = hasSkipLabel
     ? [...config.testerUsernames, ...TESTER_BACKUPS.split(",")]
     : config.testerUsernames;
-  console.log(reviews.length);
 
   const acceptedReviews = reviews.filter(
     (r) => testerUsernames.includes(r.user.login) && r.state === "APPROVED",
@@ -378,6 +376,8 @@ async function getOctoClient() {
  * @param {JiraApi} jira - Jira API connector
  */
 async function getPrInfo(jira) {
+  const octo = await getOctoClient();
+
   if (
     config.prNumber === "" &&
     config.ticketKeys.length === 0 &&
@@ -389,16 +389,17 @@ async function getPrInfo(jira) {
     process.exit(0);
   }
 
-  if (["markAsDeployedToStaging"].includes(config.actionToTake)) {
-    console.log("🤔 Deploy step requested - no PR info needed");
-    return;
-  }
-
   if (
-    config.actionToTake === "markAsDeployedToProduction" &&
-    config.ticketKeys.length > 0
+    ["markAsDeployedToStaging", "markAsDeployedToProduction"].includes(
+      config.actionToTake,
+    )
   ) {
-    console.log("💡 Production note requested - ignoring keys from PR");
+    console.log("🤔 Deploy step requested - no PR info needed");
+
+    const commits = await getLatestTagCommits();
+    const ticketKeys = [...new Set(commits.match(jiraTicketRegex) || [])];
+
+    config.ticketKeys = ticketKeys;
     return;
   }
 
@@ -418,8 +419,6 @@ async function getPrInfo(jira) {
     console.log(`✅ Found PR URL: ${prField} - extracting PR number`);
     config.prNumber = prField.split("/").at(-2);
   }
-
-  const octo = await getOctoClient();
 
   console.log(`📋 Getting PR info for ${config.prNumber}...`);
   const response = await octo.rest.pulls.get({
@@ -509,6 +508,55 @@ async function getPrReviews() {
   return reviews;
 }
 
+/**
+ * Helper function for getting commits since the latest tag
+ *
+ * This is used to validate release changelog
+ */
+async function getLatestTagCommits() {
+  console.log("🏷️ Getting commits for latest tag...");
+  const octo = await getOctoClient();
+
+  const tags = await octo.rest.repos.listTags({
+    owner: config.repoName.split("/")[0],
+    repo: config.repoName.split("/")[1],
+    per_page: 2,
+  });
+
+  console.log(JSON.stringify(tags, null, 4));
+
+  let page = 1;
+  let latestCommits = [];
+  let response;
+  const currentTag = tags.data[0].commit.sha;
+  const previousTag = tags.data[1].commit.sha;
+
+  do {
+    console.log(`\tGetting page ${page} of commits for tag ${currentTag}...`);
+
+    response = await octo.rest.repos.compareCommits({
+      owner: config.repoName.split("/")[0],
+      repo: config.repoName.split("/")[1],
+      head: currentTag,
+      base: previousTag,
+      page,
+      per_page: 100,
+    });
+
+    const commitsMessages = response.data.commits.map((c) => {
+      if (!c.commit) {
+        console.log(c);
+        return "";
+      }
+      return c.commit.message;
+    });
+    latestCommits = [...latestCommits, ...commitsMessages];
+    page++;
+    console.log(response);
+  } while (response.data.commits.length > 0);
+
+  return latestCommits.join("\n");
+}
 /**
  * Helper function for getting review requests on a certain PR
  *
