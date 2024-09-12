@@ -4,7 +4,7 @@ import { Octokit } from "octokit";
 import j2m from "jira2md";
 
 /** Extra usernames that can block PRs. Only affects the `checkForTesterApproval` step */
-const TESTER_BACKUPS = "bogdan.calapod,octavian.grigorescu";
+const TESTER_BACKUPS = "bogdan-calapod,octavian.grigorescu";
 /** Label to be applied for checking tester backups as well as QA members */
 const TESTER_APPROVAL_LABEL_SKIP = "qa-test-bypass";
 
@@ -345,6 +345,7 @@ async function checkForTesterApproval(jira) {
     ? [...config.testerUsernames, ...TESTER_BACKUPS.split(",")]
     : config.testerUsernames;
 
+  console.log(testerUsernames);
   const acceptedReviews = reviews.filter(
     (r) => testerUsernames.includes(r.user.login) && r.state === "APPROVED",
   );
