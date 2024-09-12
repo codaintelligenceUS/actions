@@ -409,9 +409,10 @@ async function getPrInfo(jira) {
     console.log("? No PR number found - getting from jira link");
 
     const issue = await jira.getIssue(config.ticketKeys[0]);
-    const prField = issue.fields[jiraFields.PR_LINK];
+    const prField = issue.fields[jiraFields.PR_LINK] ?? "";
+    const hasNumber = prField.split("/").some((x) => !isNaN(parseInt(x)));
 
-    if (!prField) {
+    if (prField === "" || !hasNumber) {
       console.log(`🤷 No PR field on issue ${config.ticketKeys[0]} - bailing`);
       return;
     }
@@ -523,8 +524,6 @@ async function getLatestTagCommits() {
     per_page: 2,
   });
 
-  console.log(JSON.stringify(tags, null, 4));
-
   let page = 1;
   let latestCommits = [];
   let response;
@@ -545,14 +544,12 @@ async function getLatestTagCommits() {
 
     const commitsMessages = response.data.commits.map((c) => {
       if (!c.commit) {
-        console.log(c);
         return "";
       }
       return c.commit.message;
     });
     latestCommits = [...latestCommits, ...commitsMessages];
     page++;
-    console.log(response);
   } while (response.data.commits.length > 0);
 
   return latestCommits.join("\n");
@@ -578,14 +575,20 @@ async function getPrReviewRequestsUsers() {
  *
  * @param {string} title The new PR title to set
  * @param {string} description The new PR description to edit
+ * @param {number} prNumber The PR number to update
  */
-async function editPrDescription(title, description) {
+async function editPrDescription(title, description, prNumber) {
   console.log("📝 Editing PR description...");
+
+  if (prNumber === "") {
+    console.log("No PR number to update, exiting...");
+  }
+
   const octo = await getOctoClient();
   await octo.rest.pulls.update({
     owner: config.repoName.split("/")[0],
     repo: config.repoName.split("/")[1],
-    pull_number: config.prNumber,
+    pull_number: prNumber,
     title,
     body: description,
   });
@@ -787,12 +790,14 @@ ${j2m.to_markdown(issue.fields.description ?? "")}
 </details>
 `;
 
-  await editIssueField(
-    issue.key,
-    jiraFields.PR_LINK,
-    `https://github.com/${config.repoName}/pull/${config.prNumber}/`,
-  );
-  await editPrDescription(title, description);
+  if (config.prNumber !== "") {
+    await editIssueField(
+      issue.key,
+      jiraFields.PR_LINK,
+      `https://github.com/${config.repoName}/pull/${config.prNumber}/`,
+    );
+    await editPrDescription(title, description, config.prNumber);
+  }
 }
 
 /**
