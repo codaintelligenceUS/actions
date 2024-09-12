@@ -97,8 +97,18 @@ async function main() {
  */
 async function markAsInProgressOrInReview(jira) {
   if (config.prNumber === "") {
-    // Just mark the issue as in progress and bail
+    // Just mark the issue as in progress, remove testers and bail
     await markAsState(jira, config.ticketKeys, statuses.inProgress);
+
+    for (const tester of config.testerUsernames) {
+      if (reviewers.includes(tester)) {
+        console.log(
+          `🔍 Found tester user ${tester} in pending reviewers list - removing...`,
+        );
+        await removePrReviewRequest(tester);
+      }
+    }
+
     return;
   }
 
@@ -380,17 +390,6 @@ async function getPrInfo(jira) {
   const octo = await getOctoClient();
 
   if (
-    config.prNumber === "" &&
-    config.ticketKeys.length === 0 &&
-    config.releaseVersion === ""
-  ) {
-    console.log(
-      "🚧 Cannot run without either PR Number or ticket keys, exiting.",
-    );
-    process.exit(0);
-  }
-
-  if (
     ["markAsDeployedToStaging", "markAsDeployedToProduction"].includes(
       config.actionToTake,
     )
@@ -401,7 +400,29 @@ async function getPrInfo(jira) {
     const ticketKeys = [...new Set(commits.match(jiraTicketRegex) || [])];
 
     config.ticketKeys = ticketKeys;
+
+    if (!config.releaseVersion || config.releaseVersion === "") {
+      console.log("\t🟠 No release version - assuming latest from github");
+      const releases = await octo.rest.repos.listTags({
+        owner: config.repoName.split("/")[0],
+        repo: config.repoName.split("/")[1],
+      });
+
+      config.releaseVersion = releases.data[0].name;
+    }
+
     return;
+  }
+
+  if (
+    config.prNumber === "" &&
+    config.ticketKeys.length === 0 &&
+    config.releaseVersion === ""
+  ) {
+    console.log(
+      "🚧 Cannot run without either PR Number or ticket keys, exiting.",
+    );
+    process.exit(0);
   }
 
   console.log("🎋 Getting PR info...");
@@ -430,7 +451,7 @@ async function getPrInfo(jira) {
   });
 
   // Check if we have a release PR branch
-  if (response.data.head.ref.includes("release")) {
+  if (response.data.head.ref.includes("release/")) {
     console.log("💡 Release branch detected - exiting...");
     process.exit(0);
   }
@@ -528,7 +549,7 @@ async function getLatestTagCommits() {
   let page = 1;
   let latestCommits = [];
   let response;
-  const currentTag = tags.data[0].commit.sha;
+  const currentTag = "HEAD";
   const previousTag = tags.data[1].commit.sha;
 
   do {
@@ -668,7 +689,12 @@ async function parseComment(comment) {
  */
 async function transitionIssue(jira, issueId, stateName) {
   const issue = await jira.getIssue(issueId);
-  await updateIssueDescription(jira);
+  try {
+    await updateIssueDescription(jira);
+  } catch (e) {
+    console.error(e);
+    console.error("Error updating PR description - just updating jira");
+  }
   if (issue.fields.status.name === stateName) {
     console.log("\tCurrent state same as requested one, bailing");
     return;
@@ -751,6 +777,8 @@ function removeEmoji(content) {
 async function updateIssueDescription(jira) {
   const issue = await jira.getIssue(config.ticketKeys[0]);
 
+  const prTickets = await getPrTickets();
+
   // Update the PR Description
   const designFieldValue = issue.fields[jiraFields.DESIGN_LINK] ?? "";
   const mockupLink = `[ ${designFieldValue.displayName} ](${designFieldValue.url})`;
@@ -762,7 +790,7 @@ async function updateIssueDescription(jira) {
 
   const title = `${issue.fields.issuetype.name.toLowerCase()}${componentsTitle}: ${removeEmoji(
     issue.fields.summary,
-  ).trim()} | ${issue.key}`;
+  ).trim()} | ${issue.key} ${prTickets.join(" ")}`;
 
   const description = `
 
@@ -777,6 +805,7 @@ async function updateIssueDescription(jira) {
 | Product Area | ${(issue.fields[jiraFields.PRODUCT_AREA] ?? { value: "N/A" }).value} |
 | Clients | ${(issue.fields[jiraFields.CLIENTS] ?? []).map((f) => f.value).join(", ")} |
 | Mockup | ${mockupLink.includes("undefined") ? "Not Available" : mockupLink} |
+| Tickets in this PR | ${prTickets.join(",")} |
 
 ---
 
@@ -797,7 +826,12 @@ ${j2m.to_markdown(issue.fields.description ?? "")}
       jiraFields.PR_LINK,
       `https://github.com/${config.repoName}/pull/${config.prNumber}/`,
     );
-    await editPrDescription(title, description, config.prNumber);
+    try {
+      await editPrDescription(title, description, config.prNumber);
+    } catch (e) {
+      console.error(e);
+      console.error("Error editing PR description - bailing");
+    }
   }
 }
 
@@ -852,4 +886,54 @@ async function ensureReleaseExists(jira, version, markAsReleased) {
   });
 
   return response.id;
+}
+
+/**
+ * Helper function to get FN numbers on a PR's branch
+ *
+ * @returns {string[]} List of FN tickets
+ */
+async function getPrTickets() {
+  if (!config.prNumber || config.prNumber === "") {
+    console.error("⚠️  No PR number - returning 0 tickets");
+    return [];
+  }
+
+  const octo = await getOctoClient();
+
+  const pr = await octo.rest.pulls.get({
+    owner: config.repoName.split("/")[0],
+    repo: config.repoName.split("/")[1],
+    pull_number: config.prNumber,
+  });
+
+  let page = 1;
+  let latestCommits = [];
+  let response;
+
+  do {
+    console.log(
+      `\tGetting page ${page} of commits for PR ${config.prNumber}...`,
+    );
+
+    response = await octo.rest.repos.listCommits({
+      owner: config.repoName.split("/")[0],
+      repo: config.repoName.split("/")[1],
+      sha: pr.data.head.ref,
+      page,
+      per_page: 100,
+    });
+
+    const commitsMessages = response.data.commits.map((c) => {
+      if (!c.commit) {
+        return "";
+      }
+      return c.commit.message;
+    });
+
+    latestCommits = [...latestCommits, ...commitsMessages];
+    page++;
+  } while (response.data.commits.length > 0);
+
+  return latestCommits.join("\n");
 }
