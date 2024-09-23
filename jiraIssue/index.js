@@ -343,11 +343,16 @@ async function checkForTesterApproval(jira) {
   console.log("📋 Checking for QA Approvals...");
   const labels = await getPrLabels();
   const hasSkipLabel = labels.includes(TESTER_APPROVAL_LABEL_SKIP);
+  const hasDevopsLabel = labels.includes("devops");
 
   if (!hasSkipLabel) {
     console.warn(
       `⚠️  Label ${TESTER_APPROVAL_LABEL_SKIP} not found in PR labels, checking only reviews from QA members`,
     );
+  }
+
+  if (hasDevopsLabel) {
+    console.warn(`⚠️  Devops label found - skipping tester check`);
   }
 
   const reviews = await getPrReviews();
@@ -400,17 +405,6 @@ async function getPrInfo(jira) {
     const ticketKeys = [...new Set(commits.match(jiraTicketRegex) || [])];
 
     config.ticketKeys = ticketKeys;
-
-    if (!config.releaseVersion || config.releaseVersion === "") {
-      console.log("\t🟠 No release version - assuming latest from github");
-      const releases = await octo.rest.repos.listTags({
-        owner: config.repoName.split("/")[0],
-        repo: config.repoName.split("/")[1],
-      });
-
-      config.releaseVersion = releases.data[0].name;
-    }
-
     return;
   }
 
@@ -894,46 +888,52 @@ async function ensureReleaseExists(jira, version, markAsReleased) {
  * @returns {string[]} List of FN tickets
  */
 async function getPrTickets() {
-  if (!config.prNumber || config.prNumber === "") {
-    console.error("⚠️  No PR number - returning 0 tickets");
-    return [];
-  }
+  try {
+    if (!config.prNumber || config.prNumber === "") {
+      console.error("⚠️  No PR number - returning 0 tickets");
+      return [];
+    }
 
-  const octo = await getOctoClient();
+    const octo = await getOctoClient();
 
-  const pr = await octo.rest.pulls.get({
-    owner: config.repoName.split("/")[0],
-    repo: config.repoName.split("/")[1],
-    pull_number: config.prNumber,
-  });
-
-  let page = 1;
-  let latestCommits = [];
-  let response;
-
-  do {
-    console.log(
-      `\tGetting page ${page} of commits for PR ${config.prNumber}...`,
-    );
-
-    response = await octo.rest.repos.listCommits({
+    const pr = await octo.rest.pulls.get({
       owner: config.repoName.split("/")[0],
       repo: config.repoName.split("/")[1],
-      sha: pr.data.head.ref,
-      page,
-      per_page: 100,
+      pull_number: config.prNumber,
     });
 
-    const commitsMessages = response.data.commits.map((c) => {
-      if (!c.commit) {
-        return "";
-      }
-      return c.commit.message;
-    });
+    let page = 1;
+    let latestCommits = [];
+    let response;
 
-    latestCommits = [...latestCommits, ...commitsMessages];
-    page++;
-  } while (response.data.commits.length > 0);
+    do {
+      console.log(
+        `\tGetting page ${page} of commits for PR ${config.prNumber}...`,
+      );
 
-  return latestCommits.join("\n");
+      response = await octo.rest.repos.listCommits({
+        owner: config.repoName.split("/")[0],
+        repo: config.repoName.split("/")[1],
+        sha: pr.data.head.ref,
+        page,
+        per_page: 100,
+      });
+
+      const commitsMessages = response.data.commits.map((c) => {
+        if (!c.commit) {
+          return "";
+        }
+        return c.commit.message;
+      });
+
+      latestCommits = [...latestCommits, ...commitsMessages];
+      page++;
+    } while (response.data.commits.length > 0);
+
+    return latestCommits.join("\n");
+  } catch (e) {
+    console.error(e);
+    console.error("Error returning PR tickets");
+    return [];
+  }
 }
