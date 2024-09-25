@@ -353,6 +353,7 @@ async function checkForTesterApproval(jira) {
 
   if (hasDevopsLabel) {
     console.warn(`⚠️  Devops label found - skipping tester check`);
+    return;
   }
 
   const reviews = await getPrReviews();
