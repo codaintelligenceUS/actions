@@ -4,7 +4,7 @@ import { Octokit } from "octokit";
 import j2m from "jira2md";
 
 /** Extra usernames that can block PRs. Only affects the `checkForTesterApproval` step */
-const TESTER_BACKUPS = "bogdan-calapod,octavian.grigorescu";
+const TESTER_BACKUPS = "bogdan-calapod,octavian-grigorescu";
 /** Label to be applied for checking tester backups as well as QA members */
 const TESTER_APPROVAL_LABEL_SKIP = "qa-test-bypass";
 
@@ -343,17 +343,11 @@ async function checkForTesterApproval(jira) {
   console.log("📋 Checking for QA Approvals...");
   const labels = await getPrLabels();
   const hasSkipLabel = labels.includes(TESTER_APPROVAL_LABEL_SKIP);
-  const hasDevopsLabel = labels.includes("devops");
 
   if (!hasSkipLabel) {
     console.warn(
       `⚠️  Label ${TESTER_APPROVAL_LABEL_SKIP} not found in PR labels, checking only reviews from QA members`,
     );
-  }
-
-  if (hasDevopsLabel) {
-    console.warn(`⚠️  Devops label found - skipping tester check`);
-    return;
   }
 
   const reviews = await getPrReviews();
