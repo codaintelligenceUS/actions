@@ -4,7 +4,7 @@ import { Octokit } from "octokit";
 import j2m from "jira2md";
 
 /** Extra usernames that can block PRs. Only affects the `checkForTesterApproval` step */
-const TESTER_BACKUPS = "bogdan-calapod,octavian.grigorescu";
+const TESTER_BACKUPS = "bogdan-calapod,octavian-grigorescu";
 /** Label to be applied for checking tester backups as well as QA members */
 const TESTER_APPROVAL_LABEL_SKIP = "qa-test-bypass";
 
